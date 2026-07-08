@@ -1,0 +1,10 @@
+# TimescaleDB data directory (Docker volume)
+pgdata/
+
+# Python
+__pycache__/
+*.pyc
+.venv/
+
+# Logs
+*.log

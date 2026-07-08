@@ -1,1 +1,3 @@
 matplotlib
+psycopg2-binary
+advantech-AutomationBDaq
