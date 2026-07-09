@@ -24,7 +24,8 @@ Key design decisions:
   - DB writer owns all CPU-heavy work (parsing interleaved data)
   - Queue.put_nowait() — DAQ NEVER blocks waiting for DB
   - DB writer is non-daemon → flushes queue before process exits
-  - Timestamps interpolated from batch start time + sample index
+  - t0 captured ONCE when DAQ loop begins; all sample timestamps are
+    interpolated as t0 + (cumulative_sample_offset + s) * dt_per_sample
 """
 
 import sys
@@ -54,9 +55,15 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ─── Shared state ─────────────────────────────────────────────────────────────
-# Each item in queue: (batch_start_timestamp_utc: float, raw_data: list[float], returned_count: int)
+# Each item in queue: (sample_offset: int, raw_data: list[float], returned_count: int)
+#   sample_offset  = cumulative per-channel sample count BEFORE this batch
+#   sample_ts      = t0 + (sample_offset + s) * dt_per_sample
 data_queue = queue.Queue(maxsize=config.QUEUE_MAXSIZE)
 stop_event = threading.Event()
+
+# t0 is captured once when the DAQ loop starts; DB writer waits for it
+daq_start_time: float = 0.0
+daq_start_event = threading.Event()   # signals that daq_start_time is valid
 
 stats_lock = threading.Lock()
 stats = {
@@ -105,6 +112,14 @@ def daq_reader_thread():
     )
 
     try:
+        # ── Capture t0 ONCE — anchor for all sample timestamps ──
+        global daq_start_time
+        daq_start_time = datetime.now(timezone.utc).timestamp()
+        daq_start_event.set()          # unblock DB writer
+        log.info(f"DAQ t0 = {datetime.fromtimestamp(daq_start_time, tz=timezone.utc).isoformat()}")
+
+        sample_offset = 0              # cumulative per-channel sample count
+
         while not stop_event.is_set():
             # Block until USER_BUFFER_SIZE interleaved samples are ready (~500ms at 1024Hz, 2ch)
             # timeout=-1 means wait indefinitely for requested count
@@ -119,19 +134,20 @@ def daq_reader_thread():
             if returned_count <= 0:
                 continue
 
-            # Capture timestamp at the START of this batch
-            batch_ts = datetime.now(timezone.utc).timestamp()
-
             # ── Minimal work: copy raw list + enqueue immediately ──
             # DO NOT loop/parse here — let DB writer handle it
             raw_copy = list(raw_data[:returned_count])
+            samples_this_batch = returned_count // config.CHANNEL_COUNT
 
             try:
-                data_queue.put_nowait((batch_ts, raw_copy, returned_count))
+                data_queue.put_nowait((sample_offset, raw_copy, returned_count))
+                sample_offset += samples_this_batch
                 with stats_lock:
                     stats["polled"]   += returned_count
                     stats["enqueued"] += 1
             except queue.Full:
+                # Offset still advances so future batches stay time-continuous
+                sample_offset += samples_this_batch
                 with stats_lock:
                     stats["dropped"] += 1
                 log.warning(
@@ -169,20 +185,25 @@ def db_writer_thread():
     INSERT_SQL = "INSERT INTO daq_samples (time, channel, value) VALUES %s"
     dt_per_sample = 1.0 / config.CLOCK_RATE
 
+    # Wait until DAQ thread has set t0 (or give up if stop was signalled early)
+    daq_start_event.wait(timeout=30)
+    t0 = daq_start_time
+    log.info(f"DB writer using t0 = {datetime.fromtimestamp(t0, tz=timezone.utc).isoformat()}")
+
     while not stop_event.is_set() or not data_queue.empty():
         try:
-            batch_ts, raw_data, returned_count = data_queue.get(timeout=1.0)
+            sample_offset, raw_data, returned_count = data_queue.get(timeout=1.0)
         except queue.Empty:
             continue
 
         # ── Parse interleaved data into DB rows ──
         # raw_data layout: [ch0_s0, ch1_s0, ch0_s1, ch1_s1, ...]
+        # Timestamp = t0 + (cumulative_offset + s) * dt_per_sample
         samples_per_channel = returned_count // config.CHANNEL_COUNT
         rows = []
         for s in range(samples_per_channel):
-            # Interpolate timestamp for each sample within batch
             sample_ts = datetime.fromtimestamp(
-                batch_ts + s * dt_per_sample, tz=timezone.utc
+                t0 + (sample_offset + s) * dt_per_sample, tz=timezone.utc
             )
             for ch in range(config.CHANNEL_COUNT):
                 value = raw_data[s * config.CHANNEL_COUNT + ch]
