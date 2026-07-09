@@ -29,7 +29,7 @@ QUEUE_BATCH_SIZE     = USER_BUFFER_SIZE   # enqueue every full buffer
 QUEUE_MAXSIZE        = 200
 
 # ─── Database ────────────────────────────────────────────────────────────────
-DB_DSN               = "postgresql://daq_user:daq_pass@localhost:5432/daq_db"
+DB_DSN               = "postgresql://admin:admin@localhost:5432/daq_db"
 
 # Number of rows per executemany page (psycopg2 tuning)
 DB_PAGE_SIZE         = 1000
