@@ -31,11 +31,11 @@ USB-4716 (hardware clock 1024 Hz)
      ▼
 ┌──────────────────────────────────────────────────────┐
 │  DAQ Reader Thread  (minimal work)                   │
+│  • capture t0 = datetime.now(utc) ONCE at start      │
 │  • getDataF64(userBuffer, -1)  — blocks ~500ms       │
-│  • capture batch timestamp                           │
 │  • copy raw list → queue.put_nowait()                │
 └─────────────────────┬────────────────────────────────┘
-                      │  (batch_timestamp, raw_data, count)
+                      │  (sample_offset, raw_data, count)
                       ▼
             ┌─────────────────┐
             │  Python Queue   │  in-memory, thread-safe
@@ -44,8 +44,9 @@ USB-4716 (hardware clock 1024 Hz)
                       │
 ┌─────────────────────▼────────────────────────────────┐
 │  DB Writer Thread  (non-daemon — flushes on exit)    │
+│  • wait for t0 via threading.Event                   │
 │  • parse interleaved float64 array                   │
-│  • interpolate per-sample timestamps                 │
+│  • interpolate: t0 + (offset + s) × dt_per_sample    │
 │  • psycopg2 execute_values() batch INSERT            │
 └──────────────────────────────────────────────────────┘
                       │
@@ -56,6 +57,27 @@ USB-4716 (hardware clock 1024 Hz)
          │  ./pgdata/ on disk     │
          └────────────────────────┘
 ```
+
+### Timestamp Strategy
+
+All sample timestamps are derived from a **single `t0`** captured once when the DAQ loop starts — no repeated `datetime.now()` calls.
+
+```
+t0 = datetime.now(utc)   ← captured once before the acquisition loop
+
+For every sample s in batch with cumulative offset O:
+  sample_ts = t0 + (O + s) × (1 / CLOCK_RATE)
+```
+
+| | Old (per-batch `datetime.now`) | New (single `t0` + offset) |
+|---|---|---|
+| Clock calls | Once per batch | **Once total** |
+| Drift risk | OS scheduling jitter accumulates | No drift — pure math |
+| Continuity on drop | Time gap in DB | ✅ Offset still advances |
+| Accuracy | ~ms jitter between batches | Exact hardware clock rate |
+
+> Even **dropped** batches advance `sample_offset`, so the timeline in the DB  
+> stays perfectly continuous with no phantom time gaps.
 
 ### Why 2 Threads?
 
@@ -148,7 +170,9 @@ Sample output:
 
 ```
 2026-07-08 22:39:00 [DAQ-Reader  ] INFO: DAQ started | channels=2 | clock=1024 Hz | sectionLength=512
+2026-07-08 22:39:00 [DAQ-Reader  ] INFO: DAQ t0 = 2026-07-08T15:39:00.123456+00:00
 2026-07-08 22:39:00 [DB-Writer   ] INFO: DB writer connected to TimescaleDB
+2026-07-08 22:39:00 [DB-Writer   ] INFO: DB writer using t0 = 2026-07-08T15:39:00.123456+00:00
 2026-07-08 22:39:10 [Monitor     ] INFO: [STATS] polled=10,240 | written=10,240 | dropped_batches=0 (0.0%) | queue=0/200
 ```
 
