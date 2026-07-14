@@ -52,7 +52,7 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.extensions
 
-import old.config as config  # same config.py as real pipeline
+import config as config  # same config.py as real pipeline
 
 # ─── Mock-up Tuning ──────────────────────────────────────────────────────────
 # Waveform parameters for each channel (index = channel offset from START_CHANNEL)
