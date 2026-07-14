@@ -86,15 +86,16 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
         subprocess.run(["docker", "rm", "daq-pipeline"], capture_output=True)
 
         # 3. Start container on the daq-net network
+        gui_host = os.environ.get("GUI_HOST", "host.docker.internal")
         cmd = [
             "docker", "run", "-d",
             "--name", "daq-pipeline",
             "--network", "daq-net",
             "--add-host=host.docker.internal:host-gateway",
-            "-e", "CONFIG_URL=http://host.docker.internal:5050/api/config",
+            "-e", f"CONFIG_URL=http://{gui_host}:5050/api/config",
             "-e", f"MODE={mode}",
-            "-e", "STATUS_URL=http://host.docker.internal:5050/api/pipeline/stats",
-            "-e", "LOG_URL=http://host.docker.internal:5050/api/pipeline/log",
+            "-e", f"STATUS_URL=http://{gui_host}:5050/api/pipeline/stats",
+            "-e", f"LOG_URL=http://{gui_host}:5050/api/pipeline/log",
             "daq-pipeline:latest"
         ]
 

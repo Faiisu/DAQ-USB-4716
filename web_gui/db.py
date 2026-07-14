@@ -1,6 +1,12 @@
 import psycopg2
 import psycopg2.extras
 import psycopg2.extensions
+import os
+
+def connect(dsn: str, **kwargs):
+    if os.environ.get("RUNNING_IN_DOCKER") == "true" and "localhost" in dsn:
+        dsn = dsn.replace("localhost", "daq_tsdb")
+    return psycopg2.connect(dsn, **kwargs)
 
 def build_mockup_dsn(original_dsn: str, dbname: str) -> str:
     parsed = psycopg2.extensions.make_dsn(original_dsn)
@@ -12,7 +18,7 @@ def ensure_mockup_db(mockup_dsn: str, db_name: str = "mockup") -> str:
     postgres_dsn = build_mockup_dsn(mockup_dsn, "postgres")
     target_dsn   = build_mockup_dsn(mockup_dsn, db_name)
 
-    conn = psycopg2.connect(postgres_dsn)
+    conn = connect(postgres_dsn)
     conn.set_isolation_level(psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
     cur = conn.cursor()
     cur.execute("SELECT 1 FROM pg_database WHERE datname = %s", (db_name,))
@@ -24,7 +30,7 @@ def ensure_mockup_db(mockup_dsn: str, db_name: str = "mockup") -> str:
     return target_dsn
 
 def ensure_schema(dsn: str):
-    conn = psycopg2.connect(dsn)
+    conn = connect(dsn)
     conn.autocommit = True
     cur = conn.cursor()
     try:
@@ -60,7 +66,7 @@ def ensure_schema(dsn: str):
 
 def start_session(dsn: str, channel_count: int, clock_rate: int) -> int | None:
     try:
-        conn = psycopg2.connect(dsn)
+        conn = connect(dsn)
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute(
@@ -78,7 +84,7 @@ def end_session(dsn: str, session_id: int | None):
     if session_id is None:
         return
     try:
-        conn = psycopg2.connect(dsn)
+        conn = connect(dsn)
         conn.autocommit = True
         cur = conn.cursor()
         cur.execute(

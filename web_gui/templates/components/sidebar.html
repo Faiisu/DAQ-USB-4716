@@ -1,0 +1,89 @@
+<!-- ═══════════ SIDEBAR ═══════════ -->
+<aside class="sidebar" id="sidebar">
+
+  <div class="sidebar-brand">
+    <!-- Logo Icon -->
+    <div class="brand-icon" aria-hidden="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+      </svg>
+    </div>
+    <div class="brand-text">
+      <div class="brand-title">USB-4716</div>
+      <div class="brand-sub">TimescaleDB Pipeline</div>
+    </div>
+  </div>
+
+  <nav class="sidebar-nav" role="navigation" aria-label="Main navigation">
+
+    <a class="nav-item active" id="nav-dashboard" data-tab="tab-dashboard" data-label="Dashboard" href="#" role="button" aria-current="page">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="3" width="7" height="7"/><rect x="14" y="3" width="7" height="7"/>
+          <rect x="14" y="14" width="7" height="7"/><rect x="3" y="14" width="7" height="7"/>
+        </svg>
+      </span>
+      <span class="nav-label">Dashboard</span>
+    </a>
+
+    <a class="nav-item" id="nav-plotter" data-tab="tab-plotter" data-label="Data Plotter" href="#" role="button">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="22 12 18 12 15 21 9 3 6 12 2 12"/>
+        </svg>
+      </span>
+      <span class="nav-label">Data Plotter</span>
+    </a>
+
+    <div class="divider" style="margin:6px 12px; height:1px; background:var(--border);"></div>
+
+    <a class="nav-item" id="nav-daq" data-tab="tab-daq" data-label="DAQ Config" href="#" role="button">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="3"/>
+          <path d="M19.07 4.93a10 10 0 0 1 0 14.14M4.93 4.93a10 10 0 0 0 0 14.14"/>
+          <path d="M12 2v2M12 20v2M2 12h2M20 12h2"/>
+        </svg>
+      </span>
+      <span class="nav-label">DAQ Config</span>
+    </a>
+
+    <a class="nav-item" id="nav-db" data-tab="tab-db" data-label="Database" href="#" role="button">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <ellipse cx="12" cy="5" rx="9" ry="3"/><path d="M21 12c0 1.66-4 3-9 3s-9-1.34-9-3"/>
+          <path d="M3 5v14c0 1.66 4 3 9 3s9-1.34 9-3V5"/>
+        </svg>
+      </span>
+      <span class="nav-label">Database</span>
+    </a>
+
+    <a class="nav-item" id="nav-mockup" data-tab="tab-mockup" data-label="Waveforms" href="#" role="button">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M2 12c.5-4.5 3-7 6-7s5 3 6 7 3 7 6 7-5.5-3-6-7"/>
+        </svg>
+      </span>
+      <span class="nav-label">Waveforms</span>
+    </a>
+
+    <a class="nav-item" id="nav-log" data-tab="tab-log" data-label="Log Console" href="#" role="button">
+      <span class="nav-icon" aria-hidden="true">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="4 17 10 11 4 5"/><line x1="12" y1="19" x2="20" y2="19"/>
+        </svg>
+      </span>
+      <span class="nav-label">Log Console</span>
+    </a>
+
+  </nav>
+
+  <!-- Status indicator -->
+  <div class="sidebar-status">
+    <div class="status-indicator">
+      <div class="status-dot" id="status-dot" aria-hidden="true"></div>
+      <span id="status-label">Stopped</span>
+    </div>
+  </div>
+
+</aside>

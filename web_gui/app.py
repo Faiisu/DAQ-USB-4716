@@ -72,7 +72,7 @@ def test_db():
     data = request.get_json(force=True)
     dsn  = data.get("dsn", config_manager.get_cfg()["mockup_db_dsn"])
     try:
-        conn = psycopg2.connect(dsn, connect_timeout=5)
+        conn = db_module.connect(dsn, connect_timeout=5)
         cur  = conn.cursor()
         cur.execute("SELECT version();")
         ver  = cur.fetchone()[0]
@@ -157,7 +157,7 @@ def static_plot():
         start_dt = now_utc - timedelta(seconds=last_sec)
 
     try:
-        conn = psycopg2.connect(dsn, connect_timeout=5)
+        conn = db_module.connect(dsn, connect_timeout=5)
         ch_filter = "AND channel = ANY(%s)" if channels else ""
         sql = f"""
             SELECT time, channel, value
@@ -199,7 +199,7 @@ def db_channels():
     else:
         dsn = data.get("dsn") or db_module.build_mockup_dsn(cfg.get("mockup_db_dsn"), "mockup")
     try:
-        conn = psycopg2.connect(dsn, connect_timeout=5)
+        conn = db_module.connect(dsn, connect_timeout=5)
         cur  = conn.cursor()
         cur.execute("SELECT DISTINCT channel FROM daq_samples ORDER BY channel;")
         chs  = [r[0] for r in cur.fetchall()]

@@ -181,6 +181,27 @@ Ensure you have the following software installed on your system before proceedin
 
 ---
 
+## 🐳 Running Entirely in Docker (Recommended)
+
+You can build and start the entire stack (TimescaleDB + Web GUI) with a single command. The Web GUI container runs in the background, mounts the host's Docker socket to orchestrate pipeline agent containers, and binds to port `5050` of your host.
+
+```bash
+# Start all services (TimescaleDB and Web GUI) in detached mode
+docker compose up -d --build
+```
+
+Once running:
+1. Open **[http://localhost:5050](http://localhost:5050)** to access the Web GUI.
+2. Go to the dashboard and run the Mockup or Real DAQ pipelines dynamically (the Web GUI will spin up a separate `daq-pipeline` container on the same network).
+3. Configuration edits made in the Web GUI are automatically synchronized to your host's [config.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/config.py) file (which is mounted as a volume).
+
+To stop and remove containers:
+```bash
+docker compose down
+```
+
+---
+
 ## 🚀 Quick Start (Step-by-Step)
 
 Follow these steps to set up and run the data acquisition pipeline.
