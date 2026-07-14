@@ -1,3 +1,13 @@
-matplotlib
+# Core DAQ pipeline
 psycopg2-binary
-advantech-AutomationBDaq
+
+# Web GUI
+flask
+flask-socketio
+eventlet
+
+# CLI plotting
+matplotlib
+
+# Hardware (Advantech USB-4716 — only needed for real hardware mode)
+# advantech-AutomationBDaq

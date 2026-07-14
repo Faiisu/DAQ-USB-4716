@@ -12,3 +12,10 @@ services:
     volumes:
       - ./pgdata:/var/lib/postgresql/data
       - ./db_setup.sql:/docker-entrypoint-initdb.d/init.sql
+    networks:
+      - daq-net
+
+networks:
+  daq-net:
+    name: daq-net
+    driver: bridge

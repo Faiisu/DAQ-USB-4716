@@ -52,7 +52,7 @@ from Automation.BDaq import *
 from Automation.BDaq.WaveformAiCtrl import WaveformAiCtrl
 from Automation.BDaq.BDaqApi import AdxEnumToString, BioFailed
 
-import config
+import old.config as config
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(

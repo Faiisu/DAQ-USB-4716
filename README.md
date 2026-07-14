@@ -1,210 +1,257 @@
-# DAQ USB-4716 → TimescaleDB Pipeline
+# DAQ USB-4716 — Control Center & TimescaleDB Pipeline
 
-A real-time data acquisition pipeline for the **Advantech USB-4716** DAQ device.  
-Streams analog input samples into a local **TimescaleDB** (PostgreSQL) database with zero data loss.
-
----
-
-## Hardware Specification
-
-| Property | Value |
-|---|---|
-| Device | Advantech USB-4716 |
-| Max Sample Rate | 200 kS/s (shared across all channels) |
-| Hardware Buffer | 1,024 samples (total, interleaved) |
-| Resolution | 16-bit |
-| Analog Inputs | 16 ch single-ended / 8 ch differential |
-| Interface | USB |
-
-> **Buffer constraint:** Hardware buffer is shared across channels.  
-> With 2 channels: max `sectionLength = 1024 ÷ 2 = 512` samples per channel.  
-> PC must drain the buffer within **~500 ms** or overflow occurs.
+A real-time data acquisition pipeline and high-tech dashboard for the **Advantech USB-4716** DAQ device. Streams analog inputs directly into a local **TimescaleDB** (PostgreSQL hypertable) with zero data loss, utilizing a fully containerized pipeline architecture managed from a beautiful Web GUI interface.
 
 ---
 
-## Architecture
+## 🏗️ System Architecture
 
-```
-USB-4716 (hardware clock 1024 Hz)
-     │
-     │  Streaming AI (WaveformAiCtrl)
-     ▼
-┌──────────────────────────────────────────────────────┐
-│  DAQ Reader Thread  (minimal work)                   │
-│  • capture t0 = datetime.now(utc) ONCE at start      │
-│  • getDataF64(userBuffer, -1)  — blocks ~500ms       │
-│  • copy raw list → queue.put_nowait()                │
-└─────────────────────┬────────────────────────────────┘
-                      │  (sample_offset, raw_data, count)
-                      ▼
-            ┌─────────────────┐
-            │  Python Queue   │  in-memory, thread-safe
-            │  max 200 batches│  ≈ 100 s of safety buffer
-            └────────┬────────┘
-                      │
-┌─────────────────────▼────────────────────────────────┐
-│  DB Writer Thread  (non-daemon — flushes on exit)    │
-│  • wait for t0 via threading.Event                   │
-│  • parse interleaved float64 array                   │
-│  • interpolate: t0 + (offset + s) × dt_per_sample    │
-│  • psycopg2 execute_values() batch INSERT            │
-└──────────────────────────────────────────────────────┘
-                      │
-                      ▼
-         ┌────────────────────────┐
-         │  TimescaleDB (Docker)  │
-         │  hypertable: daq_samples│
-         │  ./pgdata/ on disk     │
-         └────────────────────────┘
+The project decouples the web interface and database from the time-sensitive data acquisition pipeline. The web application controls the lifecycle of a dedicated Docker container running the DAQ pipeline agent.
+
+```mermaid
+graph TD
+    subgraph Host Machine [Host Environment / Port 5050]
+        User["User Browser"] <-->|HTTP / WebSockets| WebGUI["Web GUI Server (Flask + Socket.IO)"]
+        WebGUI -->|Spawns / Stops| DockerCmd["Docker CLI Engine"]
+    end
+
+    subgraph Docker Network [daq-net Bridge Network]
+        DockerCmd -->|Manages Container| Agent["DAQ Pipeline Agent Container (pipeline_agent.py)"]
+        Agent -->|1. Fetch Config| WebGUI
+        Agent -->|2. Stream Logs & Stats| WebGUI
+        Agent -->|3. Batch Insert Samples| TSDB[("TimescaleDB Container (daq_tsdb:5432)")]
+        WebGUI -.->|Verify DB / Query Plots| TSDB
+    end
+
+    subgraph Hardware Layer
+        Agent <-->|BDaq SDK / USB| DAQ["Advantech USB-4716 HW"]
+        Agent -.->|Option: Mock Mode| WaveGen["Synthetic Waveform Generator"]
+    end
+
+    classDef host fill:#2e3440,stroke:#88c0d0,stroke-width:2px,color:#d8dee9;
+    classDef container fill:#3b4252,stroke:#a3be8c,stroke-width:2px,color:#d8dee9;
+    classDef hw fill:#4c566a,stroke:#ebcb8b,stroke-width:2px,color:#d8dee9;
+    class User,WebGUI,DockerCmd host;
+    class Agent,TSDB container;
+    class DAQ,WaveGen hw;
 ```
 
-### Timestamp Strategy
+### 🧵 The 2-Thread Data Acquisition Loop
+Inside the [pipeline_agent.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/pipeline_agent.py) container, the acquisition runs on two isolated, dedicated threads:
+1. **DAQ Reader Thread**: Polls the hardware buffer periodically. Interleaved float64 arrays are pushed immediately to an in-memory, thread-safe queue.
+2. **DB Writer Thread**: Drains the queue, parses interleaved float64 values, interpolates sample timestamps, and executes bulk database writes.
 
-All sample timestamps are derived from a **single `t0`** captured once when the DAQ loop starts — no repeated `datetime.now()` calls.
+> [!TIP]
+> The Python queue acts as a ~100-second buffer (200 batches × 0.5s). If TimescaleDB is temporarily down, the queue buffers the data, automatically preventing data loss.
 
+---
+
+## 📈 Real-Time Data Flow
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor User as User Browser
+    participant GUI as Web GUI (Flask + Socket.IO)
+    participant Agent as Pipeline Container (Agent)
+    database DB as TimescaleDB (daq_tsdb)
+
+    User->>GUI: Adjust configurations (channels, clock rate)
+    GUI->>GUI: Persist settings to config.py
+    User->>GUI: Click "Start Pipeline"
+    GUI->>GUI: Build & run daq-pipeline:latest
+    activate Agent
+    Agent->>GUI: GET /api/config
+    GUI-->>Agent: Returns configured hardware & DB parameters
+    Agent->>DB: Verify / Create schema, hypertable, indices & session
+    loop Live Data Acquisition
+        Agent->>Agent: Capture raw analog inputs (Hardware / Mock Waveform)
+        Agent->>Agent: Push samples to Queue (with batch wall time)
+        Agent->>DB: INSERT batch rows via execute_values()
+        Agent->>GUI: POST /api/pipeline/stats (polling status metrics)
+        Agent->>GUI: POST /api/pipeline/log (events console logs)
+        GUI-->>User: Socket.IO emit("stats", stats)
+        GUI-->>User: Socket.IO emit("log", log)
+    end
+    User->>GUI: Click "Stop Pipeline"
+    GUI->>Agent: Sends SIGTERM / docker stop
+    Agent->>Agent: Stop DAQ Thread
+    Agent->>Agent: Flush remaining Queue items to DB
+    Agent->>DB: Close Session (Update stopped_at)
+    Agent-->>GUI: Disconnects
+    deactivate Agent
+    GUI-->>User: Pipeline Stopped status
 ```
-t0 = datetime.now(utc)   ← captured once before the acquisition loop
 
-For every sample s in batch with cumulative offset O:
-  sample_ts = t0 + (O + s) × (1 / CLOCK_RATE)
-```
+---
 
-| | Old (per-batch `datetime.now`) | New (single `t0` + offset) |
+## ✨ Features
+
+- **High-Tech Dashboard**: Responsive dark mode panel loaded with real-time stats counters, log console terminal, and live waveform charts.
+- **Glassmorphic Interactive UI**: Fully customizable mockup waveforms configuration, live database status check, and custom historical data query plotter.
+- **Microsecond Precision Timestamping**: Math-derived timestamps avoid OS scheduling jitter:
+  $$\text{sample\_ts} = t_{\text{batch\_wall}} - (S_{\text{count}} - 1 - s) \times \frac{1}{\text{CLOCK\_RATE}}$$
+- **Containerized Pipeline**: Pipeline runner process is fully isolated in Docker, decoupling GUI server logic from real-time acquisition loops.
+- **Continuous Timeline**: If a hardware or software delay drops a batch, the timeline offset is preserved so that no gaps or temporal shifts appear in the database.
+
+---
+
+## 📂 Project Structure
+
+The project files are structured as follows:
+
+*   [config.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/config.py) — Stores hardware description, active channel counts, clock sampling rate, buffer settings, and database DSN configurations. Auto-generated and updated in-place by the Web GUI manager.
+*   [pipeline_agent.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/pipeline_agent.py) — The core acquisition daemon running inside Docker. Coordinates queue buffers, hardware (BDaq SDK) / mockup threads, and PostgreSQL batch database insertions.
+*   [db_setup.sql](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/db_setup.sql) — TimescaleDB database schemas, hypertable, index declarations, and initial tables bootstrap.
+*   [docker-compose.yml](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/docker-compose.yml) — Docker Compose services orchestrating TimescaleDB databases, port forward mappings, local data mounting, and network bridges.
+*   [Dockerfile.pipeline](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/Dockerfile.pipeline) — Builds the lightweight Docker environment for the Python pipeline agent.
+*   [requirements.txt](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/requirements.txt) — Holds Python runtime library dependencies.
+*   [CommonUtils.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/CommonUtils.py) — Minimal keyboard terminal utility helper.
+*   [web_gui/](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui) — Web controller center codebase:
+    *   [web_gui/app.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/app.py) — Flask server implementing Socket.IO events, REST APIs, and client routing.
+    *   [web_gui/config_manager.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/config_manager.py) — Handles state management and disk serialization for [config.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/config.py).
+    *   [web_gui/db.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/db.py) — TimescaleDB driver connections, schema verifications, and sessions helpers.
+    *   [web_gui/pipeline.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/pipeline.py) — Interface for building the pipeline image and controlling Docker container lifecycle.
+    *   [web_gui/templates/index.html](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/templates/index.html) — HTML template for the browser client dashboard.
+    *   [web_gui/static/style.css](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/static/style.css) — Custom glassmorphism dark-themed style sheet.
+    *   [web_gui/static/app.js](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/web_gui/static/app.js) — JavaScript client driving live Socket.IO charts, forms, and control requests.
+*   [old/](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/old) — Repository of legacy, non-containerized standalone scripts.
+
+---
+
+## 🛠️ Prerequisites
+
+Ensure you have the following installed on your system:
+
+| Dependency | Required Version | Purpose |
 |---|---|---|
-| Clock calls | Once per batch | **Once total** |
-| Drift risk | OS scheduling jitter accumulates | No drift — pure math |
-| Continuity on drop | Time gap in DB | ✅ Offset still advances |
-| Accuracy | ~ms jitter between batches | Exact hardware clock rate |
-
-> Even **dropped** batches advance `sample_offset`, so the timeline in the DB  
-> stays perfectly continuous with no phantom time gaps.
-
-### Why 2 Threads?
-
-| Scenario | Single Thread | 2 Threads + Queue |
-|---|---|---|
-| DB insert is slow (network/disk) | DAQ polling stalls → hardware buffer overflow → **data loss** | DAQ thread never waits for DB ✅ |
-| DB timeout / connection drop | Loop halts → data lost | Queue buffers data → DB retries ✅ |
-| DB down for ~100 s | All data lost | Queue holds up to 200 batches ✅ |
+| **Python** | `3.8+` | Running the Flask Web GUI backend |
+| **Docker Engine & Compose** | `Latest` | Running TimescaleDB and containerized agents |
+| **Advantech DAQNavi SDK** | `Installed` | *Optional*. Required only for real Advantech USB-4716 hardware data acquisition |
 
 ---
 
-## Project Structure
+## 🚀 Quick Start (Step-by-Step)
 
-```
-DAQ-USB-4716/
-├── config.py             # All settings: DAQ + DB + pipeline tuning
-├── stream_to_db.py       # Main pipeline (2-thread + Queue)
-├── db_setup.sql          # TimescaleDB schema (auto-applied on first run)
-├── docker-compose.yml    # Local TimescaleDB deployment
-├── requirements.txt      # Python dependencies
-├── pgdata/               # DB data directory (Docker volume, git-ignored)
-│
-├── basic_InstantAI.py    # Simple one-shot AI read (debug/testing)
-├── stream_n_plot.py      # Streaming + real-time Matplotlib plot
-├── stream_only.py        # Streaming to CSV (legacy)
-└── CommonUtils.py        # kbhit() keyboard interrupt utility
-```
+### Step 1: Clone and Set Up Virtual Environment
 
----
-
-## Prerequisites
-
-| Requirement | Version |
-|---|---|
-| Python | 3.8+ |
-| Docker Desktop | Latest |
-| Advantech DAQNavi / BDaq SDK | Installed (provides `Automation.BDaq`) |
-
----
-
-## Setup
-
-### 1. Install Python Dependencies
+Clone the repository to your local directory and initialize a virtual environment:
 
 ```bash
+cd DAQ-USB-4716
+python3 -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 ```
 
-### 2. Start TimescaleDB
+### Step 2: Start TimescaleDB Service
+
+Spin up the TimescaleDB container in background detached mode:
 
 ```bash
 docker compose up -d
 ```
 
-The database schema in `db_setup.sql` is applied automatically on the first container start.
-
-Verify the container is healthy:
+Verify that the database is running and ready:
 
 ```bash
-docker compose logs -f
+docker compose logs -f timescaledb
 # Look for: "database system is ready to accept connections"
 ```
 
-### 3. Configure
+### Step 3: Run the Web GUI Control Center
 
-Edit `config.py` to match your setup:
-
-```python
-DEVICE_DESCRIPTION = "USB-4716,BID#0"   # device identifier
-CHANNEL_COUNT      = 2                   # number of channels (2 or 4)
-CLOCK_RATE         = 1024                # Hz — hardware max
-DB_DSN             = "postgresql://daq_user:daq_pass@localhost:5432/daq_db"
-```
-
-> **Buffer math is automatic:**  
-> `SECTION_LENGTH = HARDWARE_BUFFER_SIZE // CHANNEL_COUNT`  
-> 2 channels → `512`, 4 channels → `256`
-
----
-
-## Running
-
-### Start the Pipeline
+Launch the Flask + Socket.IO server:
 
 ```bash
-python stream_to_db.py
+python web_gui/app.py
 ```
 
-Sample output:
+Open your browser and navigate to:
+👉 **[http://localhost:5050](http://localhost:5050)**
 
-```
-2026-07-08 22:39:00 [DAQ-Reader  ] INFO: DAQ started | channels=2 | clock=1024 Hz | sectionLength=512
-2026-07-08 22:39:00 [DAQ-Reader  ] INFO: DAQ t0 = 2026-07-08T15:39:00.123456+00:00
-2026-07-08 22:39:00 [DB-Writer   ] INFO: DB writer connected to TimescaleDB
-2026-07-08 22:39:00 [DB-Writer   ] INFO: DB writer using t0 = 2026-07-08T15:39:00.123456+00:00
-2026-07-08 22:39:10 [Monitor     ] INFO: [STATS] polled=10,240 | written=10,240 | dropped_batches=0 (0.0%) | queue=0/200
-```
+### Step 4: Start Streaming Data
 
-### Stop
+1. **Mockup Mode (Testing)**:
+   - On the web dashboard side navigation, choose **Waveforms** to configure synthetic signals (frequency, amplitude, DC offset).
+   - Go to the **Dashboard** and click **Start Mockup**.
+   - Watch live charts update on the screen. Logs and performance statistics will stream to the console in real-time.
+2. **Real Hardware Mode (Production)**:
+   - Ensure the Advantech USB-4716 device is plugged into the USB port.
+   - Go to **Database** to verify connection, then **DAQ Config** to specify channels and rates.
+   - Click **Start Real DAQ** on the dashboard.
 
-Press `Ctrl+C` — the pipeline **flushes all remaining queue items to DB before exiting**.
-
-```
-Signal 2 received — initiating graceful shutdown...
-Waiting for DB writer to flush remaining queue...
-Pipeline stopped.
-  Total polled : 102,400 samples
-  Total written: 102,400 rows
-  Dropped      : 0 batches
-  DB errors    : 0
-```
+To stop the acquisition pipeline at any point, click **Stop Pipeline**. The container will spin down, forcing the agent to flush all cached sample values inside the queue to the database before closing the acquisition session.
 
 ---
 
-## Database
+## 🎛️ Configuration Guide
 
-### Schema
+Configuration values are declared inside [config.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/config.py) and synced dynamically when changed via the Web GUI:
+
+### Hardware Settings
+- `DEVICE_DESCRIPTION`: Descriptor tag of the DAQ USB card (e.g. `'USB-4716,BID#0'`).
+- `PROFILE_PATH`: Path to target XML file containing driver parameter configurations.
+- `START_CHANNEL`: Index of starting analog input channel (typically `0`).
+- `CHANNEL_COUNT`: Total analog input channels monitored (up to `16` single-ended).
+- `CLOCK_RATE`: Clock sample rate in Hertz (samples per second).
+
+### Buffer & Pipeline Limits
+- `HARDWARE_BUFFER_SIZE`: Total capacity of physical device buffer memory (`1024` samples).
+- `SECTION_LENGTH`: Length of segments read per buffer pull. Must respect the constraint:
+  $$\text{SECTION\_LENGTH} \le \frac{\text{HARDWARE\_BUFFER\_SIZE}}{\text{CHANNEL\_COUNT}}$$
+- `QUEUE_MAXSIZE`: Length limit of Python backup queue memory (defaults to `200` batches).
+
+### Database Settings
+- `DB_DSN`: PostgreSQL connection DSN for hardware execution mode.
+- `MOCKUP_DB_DSN`: PostgreSQL connection DSN for synthetic mockup database execution.
+- `DB_PAGE_SIZE`: Page block size used during batch inserts.
+
+---
+
+## 🔌 REST API Reference
+
+The Web GUI Flask backend exposes the following API routes:
+
+| Route | Method | Payload | Description |
+|---|---|---|---|
+| `/` | `GET` | *None* | Serves dashboard single-page HTML client |
+| `/api/config` | `GET` | *None* | Fetches active hardware, waveform, and DB configuration parameters |
+| `/api/config` | `POST` | `JSON` | Updates configuration, writing changes to [config.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/config.py) |
+| `/api/db/test` | `POST` | `JSON` | Verifies target DB connection DSN and returns engine version |
+| `/api/pipeline/start` | `POST` | `JSON` | Instructs container manager to build and start pipeline container |
+| `/api/pipeline/stop` | `POST` | *None* | Triggers graceful container stop and queue flush |
+| `/api/pipeline/status`| `GET` | *None* | Inspects Docker daemon for pipeline running state |
+| `/api/pipeline/log` | `POST` | `JSON` | Internal route: Used by container agent to forward messages to Flask |
+| `/api/pipeline/stats` | `POST` | `JSON` | Internal route: Used by container agent to forward metrics telemetry to Flask |
+| `/api/plot/static` | `POST` | `JSON` | Queries historical database records between timestamps for static plotter |
+| `/api/db/channels` | `POST` | `JSON` | Retrieves list of distinct channels currently saved in the database |
+
+---
+
+## 🗄️ TimescaleDB Schema
+
+The system automatically initializes two tables on the database:
+
+### 1. Samples Table (`daq_samples`)
+Optimized as a TimescaleDB hypertable partitioned on the `time` axis.
 
 ```sql
--- Hypertable (time-series optimized, partitioned by time)
 CREATE TABLE daq_samples (
     time        TIMESTAMPTZ      NOT NULL,
     channel     SMALLINT         NOT NULL,
     value       DOUBLE PRECISION NOT NULL
 );
+-- Hypertable partitioning
+SELECT create_hypertable('daq_samples', 'time', if_not_exists => TRUE);
+-- Compound Index
+CREATE INDEX idx_daq_channel_time ON daq_samples (channel, time DESC);
+```
 
--- Session tracking
+### 2. Sessions Table (`daq_sessions`)
+Logs every run session for tracking configurations.
+
+```sql
 CREATE TABLE daq_sessions (
     id            SERIAL PRIMARY KEY,
     started_at    TIMESTAMPTZ NOT NULL DEFAULT NOW(),
@@ -215,29 +262,23 @@ CREATE TABLE daq_sessions (
 );
 ```
 
-### Useful Queries
+### Useful Time-Series Queries
 
+#### 1. Group Average Sample Values per Second
 ```sql
--- Count samples per channel
-SELECT channel, COUNT(*) AS samples, MIN(time) AS first, MAX(time) AS last
-FROM daq_samples
-GROUP BY channel ORDER BY channel;
-
--- Latest 10 rows
-SELECT * FROM daq_samples ORDER BY time DESC LIMIT 10;
-
--- Average voltage per second (time_bucket — TimescaleDB feature)
 SELECT time_bucket('1 second', time) AS bucket,
        channel,
-       AVG(value)  AS avg_v,
-       MIN(value)  AS min_v,
-       MAX(value)  AS max_v
+       AVG(value)  AS avg_val,
+       MIN(value)  AS min_val,
+       MAX(value)  AS max_val
 FROM daq_samples
 GROUP BY bucket, channel
 ORDER BY bucket DESC
 LIMIT 20;
+```
 
--- Check for gaps greater than 2ms between samples on channel 0
+#### 2. Detect Gaps or Jitter Greater Than 2ms
+```sql
 SELECT time,
        LAG(time) OVER (ORDER BY time) AS prev_time,
        EXTRACT(EPOCH FROM (time - LAG(time) OVER (ORDER BY time))) * 1000 AS gap_ms
@@ -246,55 +287,17 @@ WHERE channel = 0
 ORDER BY time DESC;
 ```
 
-### Docker Commands
-
-```bash
-# Start DB
-docker compose up -d
-
-# Stop DB (data persisted in ./pgdata)
-docker compose stop
-
-# Remove container (data still in ./pgdata)
-docker compose down
-
-# Backup
-docker exec daq_tsdb pg_dump -U daq_user daq_db > backup_$(date +%Y%m%d).sql
-
-# Open psql shell
-docker exec -it daq_tsdb psql -U daq_user -d daq_db
-```
-
 ---
 
-## Data Volume Estimate
+## 🔍 Troubleshooting Matrix
 
-| Channels | Clock Rate | Rows/sec | MB/hour | GB/day |
-|---|---|---|---|---|
-| 1 | 1024 Hz | 1,024 | ~35 MB | ~0.85 GB |
-| 2 | 1024 Hz | 2,048 | ~70 MB | ~1.7 GB |
-| 4 | 1024 Hz | 4,096 | ~140 MB | ~3.4 GB |
+> [!WARNING]
+> Since the acquisition pipeline executes inside a Docker container, `localhost` DSN strings passed from the host will resolve to the container itself. Use `host.docker.internal` (automatically mapped by the deployment scripts) or specify the network alias `daq_tsdb`.
 
-> TimescaleDB compression can reduce storage by **50–90%** depending on signal characteristics.
-
----
-
-## Troubleshooting
-
-| Symptom | Likely Cause | Fix |
+| Symptom | Probable Cause | Corrective Action |
 |---|---|---|
-| `DAQ prepare() failed` | Device not connected or wrong BID | Check USB connection, verify `DEVICE_DESCRIPTION` |
-| `DB connection failed` | Docker not running | `docker compose up -d` |
-| `Queue full! Dropped batch` | DB insert too slow | Increase `QUEUE_MAXSIZE` or reduce `DB_PAGE_SIZE` |
-| `dropped_batches > 0` | DB down too long | Check DB health |
-| Samples per channel less than expected | `SECTION_LENGTH` too large | Ensure `SECTION_LENGTH <= HARDWARE_BUFFER_SIZE / CHANNEL_COUNT` |
-
----
-
-## Other Scripts
-
-| Script | Use Case |
-|---|---|
-| `basic_InstantAI.py` | Quick spot-check of a single channel value |
-| `stream_n_plot.py` | Real-time oscilloscope-style Matplotlib plot |
-| `stream_only.py` | Lightweight CSV logger (no DB required) |
+| **Failed to deploy container: ... network not found** | Bridge network is missing | Ensure the bridge network is created. Verify using `docker network ls` or rerun `docker compose up -d`. |
+| **DAQ prepare() failed** | Device not attached or incorrect identifier | Verify USB attachment. Check your device descriptor string matches the ID in **DAQ Config**. |
+| **DB connection failed (from agent container)** | DB DSN points to `localhost` inside container | Ensure host-resolution aliases are configured correctly. The agent script automatically replaces `localhost` with `daq_tsdb` if it detects container execution context. |
+| **BDaq SDK is not available inside this container** | BDaq drivers are only available on the host | Real DAQ mode requires the host environment to run the pipeline agent directly. Containers only support mockup waveform simulation unless USB devices and SDK volumes are mapped directly. |
+| **Queue full — batch dropped** | Database writes are slower than the clock sample rates | 1. Increase `DB_PAGE_SIZE` (default `1000`) in configuration.<br>2. Reduce `CLOCK_RATE` or `CHANNEL_COUNT`. |
