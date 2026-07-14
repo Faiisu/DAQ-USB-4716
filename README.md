@@ -30,8 +30,8 @@ graph TB
     AccessGUI --> SetupConfig["Configure DAQ parameters in config.py"]
     SetupConfig --> ChooseMode{Select Acquisition Mode}
 
-    ChooseMode -->|Mockup Mode (Testing)| StartMock["Click 'Start Mockup'"]
-    ChooseMode -->|Real HW Mode (Production)| StartReal["Click 'Start Real DAQ'"]
+    ChooseMode -->|Mockup Mode| StartMock["Click 'Start Mockup'"]
+    ChooseMode -->|Real HW Mode| StartReal["Click 'Start Real DAQ'"]
 
     StartMock --> SpawnContainer["Web GUI builds & spawns daq-pipeline container"]
     StartReal --> SpawnContainer
@@ -66,10 +66,10 @@ The sequence diagram below displays the interactions, network calls, and data tr
 ```mermaid
 sequenceDiagram
     autonumber
-    actor User as User Browser
+    actor User as "User Browser"
     participant GUI as "Web GUI Server (Flask + Socket.IO)"
     participant Agent as "Pipeline Container (Agent)"
-    database DB as "TimescaleDB (daq_tsdb)"
+    participant DB as "TimescaleDB (daq_tsdb)"
 
     User->>GUI: Adjust configurations (channels, clock rate)
     GUI->>GUI: Persist settings to config.py on host
