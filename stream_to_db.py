@@ -8,15 +8,15 @@ DAQ USB-4716 → TimescaleDB streaming pipeline
 Architecture (2-thread + Queue):
   ┌──────────────────────────────────────────────────┐
   │ DAQ Thread  (minimal work — poll + raw enqueue)  │
-  │  getDataF64() → put(raw_data, timestamp)         │
+  │  getDataF64() → wall-clock stamp → put(raw)      │
   └─────────────────────┬────────────────────────────┘
-                        │ raw interleaved float64 list
+                        │ (batch_wall_ts, raw_data, returned_count)
                         ▼
                   Queue (in-memory)
                         │
   ┌─────────────────────▼────────────────────────────┐
   │ DB Writer Thread  (parse + batch INSERT)         │
-  │  get(raw) → parse interleaved → executemany()    │
+  │  get(raw) → back-compute per-sample ts → INSERT  │
   └──────────────────────────────────────────────────┘
 
 Key design decisions:
@@ -24,8 +24,15 @@ Key design decisions:
   - DB writer owns all CPU-heavy work (parsing interleaved data)
   - Queue.put_nowait() — DAQ NEVER blocks waiting for DB
   - DB writer is non-daemon → flushes queue before process exits
-  - t0 captured ONCE when DAQ loop begins; all sample timestamps are
-    interpolated as t0 + (cumulative_sample_offset + s) * dt_per_sample
+
+  Time-sync (ms-scale):
+  - batch_wall_ts = time.time_ns() captured immediately after getDataF64()
+    returns → anchors the wall-clock time of the LAST sample in the batch.
+  - Per-sample timestamp is back-computed:
+      sample_ts = batch_wall_ts - (samples_per_channel - 1 - s) * dt_ns
+  - This eliminates cumulative drift from the single-t0 scheme; each batch
+    is re-anchored independently, keeping timestamps within OS scheduling
+    jitter (~1 ms) of real wall-clock time.
 """
 
 import sys
@@ -55,15 +62,13 @@ logging.basicConfig(
 log = logging.getLogger(__name__)
 
 # ─── Shared state ─────────────────────────────────────────────────────────────
-# Each item in queue: (sample_offset: int, raw_data: list[float], returned_count: int)
-#   sample_offset  = cumulative per-channel sample count BEFORE this batch
-#   sample_ts      = t0 + (sample_offset + s) * dt_per_sample
+# Each item in queue: (batch_wall_ts_ns: int, raw_data: list[float], returned_count: int)
+#   batch_wall_ts_ns = time.time_ns() captured right after getDataF64() returns
+#                      → wall-clock time of the LAST sample in this batch (nanoseconds)
+#   Per-sample ts is back-computed in DB writer:
+#       sample_ts = batch_wall_ts_ns - (samples_per_channel - 1 - s) * dt_ns
 data_queue = queue.Queue(maxsize=config.QUEUE_MAXSIZE)
 stop_event = threading.Event()
-
-# t0 is captured once when the DAQ loop starts; DB writer waits for it
-daq_start_time: float = 0.0
-daq_start_event = threading.Event()   # signals that daq_start_time is valid
 
 stats_lock = threading.Lock()
 stats = {
@@ -112,18 +117,18 @@ def daq_reader_thread():
     )
 
     try:
-        # ── Capture t0 ONCE — anchor for all sample timestamps ──
-        global daq_start_time
-        daq_start_time = datetime.now(timezone.utc).timestamp()
-        daq_start_event.set()          # unblock DB writer
-        log.info(f"DAQ t0 = {datetime.fromtimestamp(daq_start_time, tz=timezone.utc).isoformat()}")
-
-        sample_offset = 0              # cumulative per-channel sample count
+        log.info("DAQ loop started — per-batch wall-clock anchoring active (ms-scale sync)")
 
         while not stop_event.is_set():
-            # Block until USER_BUFFER_SIZE interleaved samples are ready (~500ms at 1024Hz, 2ch)
+            # Block until USER_BUFFER_SIZE interleaved samples are ready
             # timeout=-1 means wait indefinitely for requested count
             result = wf.getDataF64(config.USER_BUFFER_SIZE, -1)
+
+            # ── Capture wall-clock timestamp IMMEDIATELY after getDataF64() returns ──
+            # This is the best approximation of when the LAST sample in this batch
+            # was produced by the hardware. OS scheduling jitter is typically ~1 ms.
+            batch_wall_ts_ns = time.time_ns()
+
             ret, returned_count, raw_data = result[0], result[1], result[2]
 
             if BioFailed(ret):
@@ -137,17 +142,13 @@ def daq_reader_thread():
             # ── Minimal work: copy raw list + enqueue immediately ──
             # DO NOT loop/parse here — let DB writer handle it
             raw_copy = list(raw_data[:returned_count])
-            samples_this_batch = returned_count // config.CHANNEL_COUNT
 
             try:
-                data_queue.put_nowait((sample_offset, raw_copy, returned_count))
-                sample_offset += samples_this_batch
+                data_queue.put_nowait((batch_wall_ts_ns, raw_copy, returned_count))
                 with stats_lock:
                     stats["polled"]   += returned_count
                     stats["enqueued"] += 1
             except queue.Full:
-                # Offset still advances so future batches stay time-continuous
-                sample_offset += samples_this_batch
                 with stats_lock:
                     stats["dropped"] += 1
                 log.warning(
@@ -157,7 +158,7 @@ def daq_reader_thread():
 
     finally:
         wf.stop()
-        wf.release()
+        # wf.release()
         wf.dispose()
         log.info("DAQ thread stopped and device released.")
 
@@ -183,28 +184,35 @@ def db_writer_thread():
     cur = conn.cursor()
 
     INSERT_SQL = "INSERT INTO daq_samples (time, channel, value) VALUES %s"
-    dt_per_sample = 1.0 / config.CLOCK_RATE
-
-    # Wait until DAQ thread has set t0 (or give up if stop was signalled early)
-    daq_start_event.wait(timeout=30)
-    t0 = daq_start_time
-    log.info(f"DB writer using t0 = {datetime.fromtimestamp(t0, tz=timezone.utc).isoformat()}")
+    # dt in nanoseconds — used for back-computing per-sample timestamps
+    dt_ns = int(1_000_000_000 / config.CLOCK_RATE)   # e.g. 1_000_000 ns at 1000 Hz
+    log.info(
+        f"DB writer ready | clock={config.CLOCK_RATE} Hz | dt={dt_ns} ns/sample "
+        f"| time-sync: per-batch wall-clock anchor (ms-scale)"
+    )
 
     while not stop_event.is_set() or not data_queue.empty():
         try:
-            sample_offset, raw_data, returned_count = data_queue.get(timeout=1.0)
+            batch_wall_ts_ns, raw_data, returned_count = data_queue.get(timeout=1.0)
         except queue.Empty:
             continue
 
         # ── Parse interleaved data into DB rows ──
         # raw_data layout: [ch0_s0, ch1_s0, ch0_s1, ch1_s1, ...]
-        # Timestamp = t0 + (cumulative_offset + s) * dt_per_sample
+        #
+        # Time-sync: batch_wall_ts_ns anchors the LAST sample of this batch.
+        # Back-compute each earlier sample:
+        #   sample_ts_ns = batch_wall_ts_ns - (samples_per_channel - 1 - s) * dt_ns
+        #
+        # This keeps every timestamp within OS scheduling jitter (~1 ms)
+        # of real wall-clock time, with no cumulative drift.
         samples_per_channel = returned_count // config.CHANNEL_COUNT
         rows = []
         for s in range(samples_per_channel):
-            sample_ts = datetime.fromtimestamp(
-                t0 + (sample_offset + s) * dt_per_sample, tz=timezone.utc
-            )
+            offset_ns = (samples_per_channel - 1 - s) * dt_ns
+            sample_ts_ns = batch_wall_ts_ns - offset_ns
+            # Convert ns → datetime (Python datetime has µs resolution, sufficient)
+            sample_ts = datetime.fromtimestamp(sample_ts_ns / 1_000_000_000, tz=timezone.utc)
             for ch in range(config.CHANNEL_COUNT):
                 value = raw_data[s * config.CHANNEL_COUNT + ch]
                 rows.append((sample_ts, config.START_CHANNEL + ch, value))
@@ -224,7 +232,7 @@ def db_writer_thread():
             log.error(f"DB insert error: {e} — re-queuing batch to avoid data loss")
             # Re-enqueue so data is not lost (best-effort)
             try:
-                data_queue.put_nowait((batch_ts, raw_data, returned_count))
+                data_queue.put_nowait((batch_wall_ts_ns, raw_data, returned_count))
             except queue.Full:
                 with stats_lock:
                     stats["dropped"] += 1

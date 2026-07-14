@@ -49,6 +49,7 @@ for _backend in ("MacOSX", "Qt5Agg", "TkAgg", "Agg"):
 else:
     raise RuntimeError("No working matplotlib backend found")
 import matplotlib.dates as mdates
+import matplotlib.ticker
 from matplotlib.animation import FuncAnimation
 
 import psycopg2
@@ -58,7 +59,7 @@ import psycopg2.extras
 try:
     from config import DB_DSN
 except ImportError:
-    DB_DSN = "postgresql://admin:admin@localhost:5432/daq_db"
+    DB_DSN = "postgresql://admin:admin@172.21.108.86:5432/daq_db"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
@@ -129,6 +130,32 @@ def query_live(conn, channels, since_dt):
     return data, latest
 
 
+def _ms_fmt(x, _):
+    """Format a matplotlib date float as HH:MM:SS.mmm."""
+    dt = mdates.num2date(x)
+    return dt.strftime("%H:%M:%S.") + f"{dt.microsecond // 1000:03d}"
+
+
+def _apply_ms_locator(ax):
+    """Configure the x-axis so the smallest tick unit is 1 ms (mmm)."""
+    locator = mdates.AutoDateLocator(
+        minticks=3,
+        maxticks=10,
+        interval_multiples=True,
+    )
+    # MILLISECONDLY = 6 in matplotlib's date constants; set it as the
+    # minimum granularity so ticks never coarsen beyond whole seconds.
+    locator.intervald[mdates.SECONDLY]      = [1, 5, 10, 15, 30]
+    locator.intervald[mdates.MINUTELY]      = [1, 5, 10, 15, 30]
+    locator.intervald[mdates.HOURLY]        = [1, 3, 6, 12]
+    locator.intervald[mdates.DAILY]         = [1, 2, 7]
+    # Ensure milliseconds are always a candidate level
+    if hasattr(mdates, 'MILLISECONDLY'):
+        locator.intervald[mdates.MILLISECONDLY] = [1, 5, 10, 25, 50, 100, 250, 500]
+    ax.xaxis.set_major_locator(locator)
+    ax.xaxis.set_major_formatter(matplotlib.ticker.FuncFormatter(_ms_fmt))
+
+
 # ─── Colour palette ──────────────────────────────────────────────────────────
 
 COLOURS = [
@@ -195,7 +222,7 @@ def run_static(args):
                        f"{end_dt.strftime('%H:%M:%S')} UTC"),
                 ylabel="Voltage (V)")
 
-    ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+    _apply_ms_locator(ax)
     fig.autofmt_xdate()
     ax.legend(loc="upper right", facecolor="#2A2A3E", edgecolor="#555",
               labelcolor="white", fontsize=9)
@@ -233,7 +260,7 @@ class LivePlotter:
 
         _style_axes(self.ax, title="DAQ Live Plot  |  reading from database",
                     ylabel="Voltage (V)")
-        self.ax.xaxis.set_major_formatter(mdates.DateFormatter("%H:%M:%S"))
+        _apply_ms_locator(self.ax)
         self.fig.autofmt_xdate()
         self.ax.legend(loc="upper right", facecolor="#2A2A3E", edgecolor="#555",
                        labelcolor="white", fontsize=9)

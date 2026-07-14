@@ -3,9 +3,9 @@
 DEVICE_DESCRIPTION   = "USB-4716,BID#0"
 PROFILE_PATH         = "./profile.xml"
 START_CHANNEL        = 0
-CHANNEL_COUNT        = 2             # 2 or 4 channels
+CHANNEL_COUNT        = 1             # 2 or 4 channels
 
-CLOCK_RATE           = 1024          # Hz — hardware max sampling rate
+CLOCK_RATE           = 1000          # Hz — hardware max sampling rate
 
 # Hardware internal buffer max = 1024 samples (total, interleaved across channels)
 # sectionLength must be <= HARDWARE_BUFFER_SIZE // CHANNEL_COUNT to avoid overflow
@@ -29,7 +29,7 @@ QUEUE_BATCH_SIZE     = USER_BUFFER_SIZE   # enqueue every full buffer
 QUEUE_MAXSIZE        = 200
 
 # ─── Database ────────────────────────────────────────────────────────────────
-DB_DSN               = "postgresql://admin:admin@localhost:5432/daq_db"
+DB_DSN               = "postgresql://admin:admin@172.21.108.86:5432/daq_db"
 
 # Number of rows per executemany page (psycopg2 tuning)
 DB_PAGE_SIZE         = 1000
