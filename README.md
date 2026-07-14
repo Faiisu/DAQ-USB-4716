@@ -154,7 +154,7 @@ graph TD
     Agent --> Writer
     Reader -->|Interleaved float64| Queue
     Queue -->|Buffered batches| Writer
-    Writer -->|Bulk INSERT (SQL)| TSDB
+    Writer -->|Bulk INSERT| TSDB
 
     Reader -->|BDaq SDK| BDAQ
     Reader -->|Mock mode| MockWave
