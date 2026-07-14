@@ -1,11 +1,8 @@
 import psycopg2
 import psycopg2.extras
 import psycopg2.extensions
-import os
 
 def connect(dsn: str, **kwargs):
-    if os.environ.get("RUNNING_IN_DOCKER") == "true" and "localhost" in dsn:
-        dsn = dsn.replace("localhost", "daq_tsdb")
     return psycopg2.connect(dsn, **kwargs)
 
 def build_mockup_dsn(original_dsn: str, dbname: str) -> str:

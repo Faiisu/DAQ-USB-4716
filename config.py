@@ -1,4 +1,4 @@
-# config.py (Auto-generated/updated by Web GUI on 2026-07-14T17:22:37.486671)
+# config.py (Auto-generated/updated by Web GUI on 2026-07-15T02:07:38.974395)
 
 # ─── DAQ Hardware ────────────────────────────────────────────────────────────
 DEVICE_DESCRIPTION   = 'USB-4716,BID#0'

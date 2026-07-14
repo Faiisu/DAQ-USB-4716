@@ -110,23 +110,6 @@ def pipeline_status():
     return jsonify(pipeline_manager.get_stats())
 
 
-@app.route("/api/pipeline/log", methods=["POST"])
-def receive_pipeline_log():
-    data = request.get_json(force=True)
-    msg = data.get("msg", "")
-    level = data.get("level", "info")
-    on_pipeline_log(msg, level)
-    return jsonify({"ok": True})
-
-
-@app.route("/api/pipeline/stats", methods=["POST"])
-def receive_pipeline_stats():
-    data = request.get_json(force=True)
-    pipeline_manager.update_stats_from_container(data)
-    return jsonify({"ok": True})
-
-
-
 
 @app.route("/api/plot/static", methods=["POST"])
 def static_plot():
