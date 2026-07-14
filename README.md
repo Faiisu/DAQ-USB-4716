@@ -24,32 +24,32 @@ This flowchart visualizes the complete lifecycle of a user operation from starti
 
 ```mermaid
 graph TB
-    Start([User Starts System]) --> RunDocker[Start TimescaleDB:<br/>docker compose up -d]
-    RunDocker --> RunGUI[Run Flask GUI:<br/>python web_gui/app.py]
-    RunGUI --> AccessGUI[Access Dashboard:<br/>http://localhost:5050]
-    AccessGUI --> SetupConfig[Configure DAQ Parameters / Waveforms]
+    Start([User Starts System]) --> RunDocker["Start TimescaleDB (docker compose up -d)"]
+    RunDocker --> RunGUI["Run Flask GUI (python web_gui/app.py)"]
+    RunGUI --> AccessGUI["Access Dashboard at http://localhost:5050"]
+    AccessGUI --> SetupConfig["Configure DAQ parameters in config.py"]
     SetupConfig --> ChooseMode{Select Acquisition Mode}
 
-    ChooseMode -->|Mockup Mode (Testing)| StartMock[Click "Start Mockup"]
-    ChooseMode -->|Real HW Mode (Production)| StartReal[Click "Start Real DAQ"]
+    ChooseMode -->|Mockup Mode (Testing)| StartMock["Click 'Start Mockup'"]
+    ChooseMode -->|Real HW Mode (Production)| StartReal["Click 'Start Real DAQ'"]
 
-    StartMock --> SpawnContainer[Web GUI builds & spawns daq-pipeline container]
+    StartMock --> SpawnContainer["Web GUI builds & spawns daq-pipeline container"]
     StartReal --> SpawnContainer
 
-    SpawnContainer --> FetchConfig[Agent container fetches config from GUI]
-    FetchConfig --> InitDB[Initialize TimescaleDB Schema / Start Session]
-    InitDB --> RunAcquisition[Run 2-Thread Pipeline Loop]
+    SpawnContainer --> FetchConfig["Agent container fetches config from GUI"]
+    FetchConfig --> InitDB["Initialize TimescaleDB Schema & Session"]
+    InitDB --> RunAcquisition["Run 2-Thread Pipeline Loop"]
 
-    RunAcquisition --> StreamDashboard[Stream Live Data via Socket.IO]
-    StreamDashboard --> LiveCharts[Display Live Waveforms, Logs & Stats]
+    RunAcquisition --> StreamDashboard["Stream Live Data via Socket.IO"]
+    StreamDashboard --> LiveCharts["Display Live Waveforms, Logs & Stats"]
 
     LiveCharts --> UserStop{Stop Pipeline?}
     UserStop -->|No| LiveCharts
-    UserStop -->|Yes| ClickStop[Click "Stop Pipeline"]
+    UserStop -->|Yes| ClickStop["Click 'Stop Pipeline'"]
 
-    ClickStop --> SigTerm[Web GUI stops Docker Container]
-    SigTerm --> FlushQueue[Agent flushes remaining Queue to DB]
-    FlushQueue --> CloseSession[Session marked as stopped in DB]
+    ClickStop --> SigTerm["Web GUI stops Docker Container"]
+    SigTerm --> FlushQueue["Agent flushes remaining Queue to DB"]
+    FlushQueue --> CloseSession["Session marked as stopped in DB"]
     CloseSession --> Stop([Pipeline Stopped])
 
     style Start fill:#e1f5e1,stroke:#2e7d32,stroke-width:2px
@@ -67,9 +67,9 @@ The sequence diagram below displays the interactions, network calls, and data tr
 sequenceDiagram
     autonumber
     actor User as User Browser
-    participant GUI as Web GUI Server (Flask + Socket.IO)
-    participant Agent as Pipeline Container (Agent)
-    database DB as TimescaleDB (daq_tsdb)
+    participant GUI as "Web GUI Server (Flask + Socket.IO)"
+    participant Agent as "Pipeline Container (Agent)"
+    database DB as "TimescaleDB (daq_tsdb)"
 
     User->>GUI: Adjust configurations (channels, clock rate)
     GUI->>GUI: Persist settings to config.py on host
@@ -107,34 +107,34 @@ This diagram shows the system architecture layers, components, technologies, and
 ```mermaid
 graph TD
     subgraph "Browser Layer (HTML/CSS/JS)"
-        UI["Dashboard Web Client<br/>Single-Page HTML Interface"]
-        Charts["Oscilloscope Live Charts<br/>Chart.js"]
-        SioClient["Socket.IO Client<br/>Logs / Stats Receiver"]
+        UI["Dashboard Web Client Interface"]
+        Charts["Oscilloscope Live Charts (Chart.js)"]
+        SioClient["Socket.IO Client Logs & Stats Receiver"]
     end
 
     subgraph "Web Controller Layer (Flask)"
-        GUI["Web GUI Server<br/>Flask App (app.py)"]
-        CfgMgr["Config Manager<br/>config_manager.py"]
-        PipeMgr["Pipeline Deployer<br/>pipeline.py (Docker CLI)"]
-        DbModule["DB Connector & Query API<br/>db.py"]
+        GUI["Web GUI Server Flask App (app.py)"]
+        CfgMgr["Config Manager (config_manager.py)"]
+        PipeMgr["Pipeline Deployer via Docker CLI (pipeline.py)"]
+        DbModule["DB Connector & Query API (db.py)"]
     end
 
     subgraph "Database Layer"
-        TSDB[("TimescaleDB<br/>daq_tsdb:5432")]
-        HyperTable[("Hypertable<br/>daq_samples")]
-        SessionTable[("Session Log Table<br/>daq_sessions")]
+        TSDB[("TimescaleDB Container (daq_tsdb)")]
+        HyperTable[("Hypertable daq_samples")]
+        SessionTable[("Session Log Table daq_sessions")]
     end
 
     subgraph "Data Acquisition Layer (Docker Container)"
-        Agent["Pipeline Agent Container<br/>pipeline_agent.py"]
-        Reader["DAQ Reader Thread<br/>Hardware / Mockup"]
-        Queue["Thread-Safe Buffer<br/>queue.Queue"]
-        Writer["DB Writer Thread<br/>psycopg2 Execute Values"]
+        Agent["Pipeline Agent Container (pipeline_agent.py)"]
+        Reader["DAQ Reader Thread (Hardware / Mockup)"]
+        Queue["Thread-Safe Buffer (queue.Queue)"]
+        Writer["DB Writer Thread (psycopg2 execute_values)"]
     end
 
     subgraph "Hardware Layer"
-        BDAQ["Advantech USB-4716 Card<br/>BDaq SDK Driver"]
-        MockWave["Waveform Generator<br/>Synthetic Sine/Noise/Sawtooth"]
+        BDAQ["Advantech USB-4716 Card (BDaq SDK)"]
+        MockWave["Waveform Generator (Sine/Noise/Sawtooth)"]
     end
 
     UI -->|HTTP Requests| GUI
