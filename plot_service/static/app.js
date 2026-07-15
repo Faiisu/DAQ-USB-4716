@@ -285,10 +285,12 @@ function renderPlotCard(plot) {
             </select>
             ` : ''}
             <select class="footer-select" onchange="updatePlotTimeRange(${plot.id}, this.value)">
+                <option value="5" ${plot.timeRange === 5 ? 'selected' : ''}>5s</option>
                 <option value="30" ${plot.timeRange === 30 ? 'selected' : ''}>30s</option>
                 <option value="60" ${plot.timeRange === 60 ? 'selected' : ''}>1m</option>
                 <option value="300" ${plot.timeRange === 300 ? 'selected' : ''}>5m</option>
                 <option value="900" ${plot.timeRange === 900 ? 'selected' : ''}>15m</option>
+                <option value="1800" ${plot.timeRange === 1800 ? 'selected' : ''}>30m</option>
             </select>
         `;
     } else {

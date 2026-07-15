@@ -18,14 +18,38 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'USB4716', 'config.json')
 
 def get_db_dsn():
-    """Reads the default database DSN from config.json."""
+    """
+    Reads the default database DSN from config.json.
+    Automatically checks the active DAQ ingestion mode. If in 'mockup' mode, 
+    returns the mockup connection string; otherwise returns the production DSN.
+    """
     try:
         with open(CONFIG_PATH, 'r') as f:
             cfg = json.load(f)
+            
+        # Check active process mode from the DAQ control status file
+        mode_path = os.path.join(os.path.dirname(__file__), '..', 'USB4716', '.daq_process.mode')
+        active_mode = 'real'
+        if os.path.exists(mode_path):
+            with open(mode_path, 'r') as mf:
+                active_mode = mf.read().strip()
+                
+        if active_mode == 'mockup':
+            # Swap database name in MOCKUP_DB_DSN to target the mockup database
+            base_dsn = cfg.get("MOCKUP_DB_DSN", "postgresql://admin:admin@localhost:5432/daq_db")
+            if "/daq_db" in base_dsn:
+                return base_dsn.replace("/daq_db", "/mockup")
+            elif base_dsn.endswith("/"):
+                return base_dsn + "mockup"
+            else:
+                slash_idx = base_dsn.rfind('/')
+                if slash_idx != -1:
+                    return base_dsn[:slash_idx+1] + "mockup"
+            return base_dsn
+        else:
             return cfg.get("DB_DSN")
     except Exception as e:
-        print(f"Error loading config.json DSN: {e}")
-        # Default fallback
+        print(f"Error loading DSN: {e}")
         return "postgresql://admin:admin@172.21.108.86:5432/daq_db"
 
 @app.route('/')
@@ -48,7 +72,6 @@ def test_db_connection():
     
     conn = None
     try:
-        # Run a simple query to verify connection
         conn = psycopg2.connect(dsn, connect_timeout=3)
         with conn.cursor() as cur:
             cur.execute("SELECT 1;")
