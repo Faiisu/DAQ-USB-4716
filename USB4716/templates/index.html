@@ -130,6 +130,44 @@
                         </div>
                     </div>
 
+                    <!-- Linear Scaling Panel Divider -->
+                    <div style="height: 1px; background-color: var(--border-light); margin: 1.5rem 0 1rem 0;"></div>
+                    
+                    <div class="panel-header" style="border: none; padding-bottom: 0.5rem; min-height: auto;">
+                        <h2 style="font-size: 0.85rem; letter-spacing: 0.05em; color: var(--text-primary);">LINEAR SCALING (CALIBRATION)</h2>
+                    </div>
+
+                    <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
+                        <input type="checkbox" id="SCALE_ENABLED" name="SCALE_ENABLED" style="accent-color: var(--accent-sky); cursor: pointer; width: auto; margin-right: 0.5rem;">
+                        <label for="SCALE_ENABLED" style="cursor: pointer; text-transform: none; font-size: 0.75rem; letter-spacing: normal;">Enable Linear Sensor Scaling</label>
+                    </div>
+
+                    <div id="scaling-fields-group">
+                        <div class="form-row" style="margin-bottom: 0.75rem;">
+                            <div class="form-group">
+                                <label for="SCALE_LOW_VOLTAGE">Low Voltage (V)</label>
+                                <input type="number" id="SCALE_LOW_VOLTAGE" name="SCALE_LOW_VOLTAGE" step="any">
+                            </div>
+                            <div class="form-group">
+                                <label for="SCALE_HIGH_VOLTAGE">High Voltage (V)</label>
+                                <input type="number" id="SCALE_HIGH_VOLTAGE" name="SCALE_HIGH_VOLTAGE" step="any">
+                            </div>
+                        </div>
+
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="SCALE_LOW_VALUE">Low Value (Scaled Unit)</label>
+                                <input type="number" id="SCALE_LOW_VALUE" name="SCALE_LOW_VALUE" step="any">
+                            </div>
+                            <div class="form-group">
+                                <label for="SCALE_HIGH_VALUE">High Value (Scaled Unit)</label>
+                                <input type="number" id="SCALE_HIGH_VALUE" name="SCALE_HIGH_VALUE" step="any">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div style="margin-bottom: 1.5rem;"></div>
+
                     <button type="submit" class="save-btn">
                         <span>Save Configuration</span>
                     </button>

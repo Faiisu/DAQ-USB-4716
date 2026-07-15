@@ -364,6 +364,18 @@ def db_writer_thread():
                 )
                 for ch in range(config.CHANNEL_COUNT):
                     value = raw_data[s * config.CHANNEL_COUNT + ch]
+                    
+                    # Apply linear calibration scaling if enabled in config.json
+                    if getattr(config, 'SCALE_ENABLED', False):
+                        low_volt = getattr(config, 'SCALE_LOW_VOLTAGE', 0.0)
+                        high_volt = getattr(config, 'SCALE_HIGH_VOLTAGE', 10.0)
+                        low_val = getattr(config, 'SCALE_LOW_VALUE', 0.0)
+                        high_val = getattr(config, 'SCALE_HIGH_VALUE', 100.0)
+                        
+                        denom = high_volt - low_volt
+                        if abs(denom) > 1e-9:
+                            value = low_val + ((value - low_volt) * (high_val - low_val)) / denom
+                    
                     rows.append((sample_ts, config.START_CHANNEL + ch, value))
 
             # ── Batch INSERT (identical to real pipeline) ──

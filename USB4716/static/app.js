@@ -18,6 +18,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('config-form');
     form.addEventListener('submit', handleConfigSave);
 
+    // Setup scaling toggle listener
+    document.getElementById('SCALE_ENABLED').addEventListener('change', toggleScalingFields);
+
     // Setup action buttons
     document.getElementById('start-btn').addEventListener('click', handleStartProcess);
     document.getElementById('stop-btn').addEventListener('click', handleStopProcess);
@@ -49,9 +52,14 @@ async function loadConfig() {
         Object.keys(config).forEach(key => {
             const input = document.getElementById(key);
             if (input) {
-                input.value = config[key];
+                if (input.type === 'checkbox') {
+                    input.checked = config[key];
+                } else {
+                    input.value = config[key];
+                }
             }
         });
+        toggleScalingFields();
         appendLog('INFO', 'System configuration loaded from config.json.');
     } catch (e) {
         appendLog('ERROR', `Failed to load config: ${e.message}`);
@@ -106,17 +114,22 @@ function updateUIState(running, mode = 'mockup') {
 // Intercept form submissions and update JSON configuration on the server
 async function handleConfigSave(e) {
     e.preventDefault();
-    const formData = new FormData(e.target);
     const configData = {};
+    const elements = e.target.elements;
     
-    formData.forEach((value, key) => {
-        // Convert numeric fields back to ints
-        if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'HARDWARE_BUFFER_SIZE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC'].includes(key)) {
-            configData[key] = parseInt(value, 10);
+    // Parse form fields manually to support checkboxes and numeric types
+    for (let el of elements) {
+        if (!el.name) continue;
+        if (el.type === 'checkbox') {
+            configData[el.name] = el.checked;
+        } else if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC'].includes(el.name)) {
+            configData[el.name] = parseInt(el.value, 10);
+        } else if (['SCALE_LOW_VOLTAGE', 'SCALE_HIGH_VOLTAGE', 'SCALE_LOW_VALUE', 'SCALE_HIGH_VALUE'].includes(el.name)) {
+            configData[el.name] = parseFloat(el.value);
         } else {
-            configData[key] = value;
+            configData[el.name] = el.value;
         }
-    });
+    }
 
     try {
         const res = await fetch('/api/config', {
@@ -235,6 +248,19 @@ function bindSocketEvents() {
             lossVal.className = 'telemetry-value monospace text-error';
         } else {
             lossVal.className = 'telemetry-value monospace text-amber';
+        }
+    });
+}
+
+// Enable/Disable scaling sub-inputs based on toggle checkbox
+function toggleScalingFields() {
+    const isEnabled = document.getElementById('SCALE_ENABLED').checked;
+    const fields = ['SCALE_LOW_VOLTAGE', 'SCALE_HIGH_VOLTAGE', 'SCALE_LOW_VALUE', 'SCALE_HIGH_VALUE'];
+    fields.forEach(id => {
+        const el = document.getElementById(id);
+        if (el) {
+            el.disabled = !isEnabled;
+            el.required = isEnabled; // Require input values if enabled
         }
     });
 }
