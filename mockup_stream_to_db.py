@@ -1,5 +1,7 @@
 #!/usr/bin/env python3
 # -*- coding: utf-8 -*-
+# See: docs/architecture/context.md
+
 """
 mockup_stream_to_db.py
 ──────────────────────

@@ -1,4 +1,5 @@
 #!/usr/bin/env python3
+# See: docs/architecture/context.md
 # plot_from_db.py
 # ─────────────────────────────────────────────────────────────────────────────
 # Read DAQ data from TimescaleDB and plot it.
