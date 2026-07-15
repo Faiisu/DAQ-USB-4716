@@ -4,6 +4,8 @@
 
 const socket = io();
 let isSystemRunning = false;
+let scaleConfigs = {};
+let currentScaleChannel = '0';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Start clock thread
@@ -18,8 +20,9 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('config-form');
     form.addEventListener('submit', handleConfigSave);
 
-    // Setup scaling toggle listener
+    // Setup scaling toggle and target channel listeners
     document.getElementById('SCALE_ENABLED').addEventListener('change', toggleScalingFields);
+    document.getElementById('SCALE_CHANNEL_TARGET').addEventListener('change', handleScaleChannelTargetChange);
 
     // Setup action buttons
     document.getElementById('start-btn').addEventListener('click', handleStartProcess);
@@ -48,10 +51,10 @@ async function loadConfig() {
         if (!res.ok) throw new Error("Failed to load config.");
         const config = await res.json();
         
-        // Populate inputs
+        // Populate standard inputs
         Object.keys(config).forEach(key => {
             const input = document.getElementById(key);
-            if (input) {
+            if (input && key !== 'SCALE_CONFIGS') {
                 if (input.type === 'checkbox') {
                     input.checked = config[key];
                 } else {
@@ -59,7 +62,12 @@ async function loadConfig() {
                 }
             }
         });
-        toggleScalingFields();
+        
+        // Store per-channel scale configurations
+        scaleConfigs = config.SCALE_CONFIGS || {};
+        currentScaleChannel = document.getElementById('SCALE_CHANNEL_TARGET').value || '0';
+        loadScaleChannelToInputs(currentScaleChannel);
+        
         appendLog('INFO', 'System configuration loaded from config.json.');
     } catch (e) {
         appendLog('ERROR', `Failed to load config: ${e.message}`);
@@ -114,22 +122,28 @@ function updateUIState(running, mode = 'mockup') {
 // Intercept form submissions and update JSON configuration on the server
 async function handleConfigSave(e) {
     e.preventDefault();
+    
+    // Save current active scaling inputs first
+    saveInputsToScaleChannel(currentScaleChannel);
+    
     const configData = {};
     const elements = e.target.elements;
     
-    // Parse form fields manually to support checkboxes and numeric types
+    // Parse form fields manually to support checkboxes, integers, and custom keys
     for (let el of elements) {
-        if (!el.name) continue;
+        if (!el.name) continue; // Excludes channel-specific scaling inputs without name attrs
+        
         if (el.type === 'checkbox') {
             configData[el.name] = el.checked;
         } else if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC'].includes(el.name)) {
             configData[el.name] = parseInt(el.value, 10);
-        } else if (['SCALE_LOW_VOLTAGE', 'SCALE_HIGH_VOLTAGE', 'SCALE_LOW_VALUE', 'SCALE_HIGH_VALUE'].includes(el.name)) {
-            configData[el.name] = parseFloat(el.value);
         } else {
             configData[el.name] = el.value;
         }
     }
+
+    // Inject scaling configs dictionary
+    configData['SCALE_CONFIGS'] = scaleConfigs;
 
     try {
         const res = await fetch('/api/config', {
@@ -263,4 +277,36 @@ function toggleScalingFields() {
             el.required = isEnabled; // Require input values if enabled
         }
     });
+}
+
+// Load calibration data from config object to input fields
+function loadScaleChannelToInputs(ch) {
+    const cfg = scaleConfigs[ch] || { enabled: false, low_voltage: 0.0, high_voltage: 10.0, low_value: 0.0, high_value: 100.0 };
+    document.getElementById('SCALE_ENABLED').checked = cfg.enabled;
+    document.getElementById('SCALE_LOW_VOLTAGE').value = cfg.low_voltage;
+    document.getElementById('SCALE_HIGH_VOLTAGE').value = cfg.high_voltage;
+    document.getElementById('SCALE_LOW_VALUE').value = cfg.low_value;
+    document.getElementById('SCALE_HIGH_VALUE').value = cfg.high_value;
+    toggleScalingFields();
+}
+
+// Save inputs back to active channel configuration in memory
+function saveInputsToScaleChannel(ch) {
+    scaleConfigs[ch] = {
+        enabled: document.getElementById('SCALE_ENABLED').checked,
+        low_voltage: parseFloat(document.getElementById('SCALE_LOW_VOLTAGE').value) || 0.0,
+        high_voltage: parseFloat(document.getElementById('SCALE_HIGH_VOLTAGE').value) || 10.0,
+        low_value: parseFloat(document.getElementById('SCALE_LOW_VALUE').value) || 0.0,
+        high_value: parseFloat(document.getElementById('SCALE_HIGH_VALUE').value) || 100.0
+    };
+}
+
+// Handle changes to target calibration channel selection
+function handleScaleChannelTargetChange(e) {
+    // 1. Save inputs of current channel
+    saveInputsToScaleChannel(currentScaleChannel);
+    // 2. Change channel index pointer
+    currentScaleChannel = e.target.value;
+    // 3. Load config of new channel into inputs
+    loadScaleChannelToInputs(currentScaleChannel);
 }

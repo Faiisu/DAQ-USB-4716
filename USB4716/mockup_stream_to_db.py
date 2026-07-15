@@ -365,12 +365,17 @@ def db_writer_thread():
                 for ch in range(config.CHANNEL_COUNT):
                     value = raw_data[s * config.CHANNEL_COUNT + ch]
                     
-                    # Apply linear calibration scaling if enabled in config.json
-                    if getattr(config, 'SCALE_ENABLED', False):
-                        low_volt = getattr(config, 'SCALE_LOW_VOLTAGE', 0.0)
-                        high_volt = getattr(config, 'SCALE_HIGH_VOLTAGE', 10.0)
-                        low_val = getattr(config, 'SCALE_LOW_VALUE', 0.0)
-                        high_val = getattr(config, 'SCALE_HIGH_VALUE', 100.0)
+                    # Apply per-channel linear calibration scaling if enabled in config.json
+                    ch_num = config.START_CHANNEL + ch
+                    ch_str = str(ch_num)
+                    scale_configs = getattr(config, 'SCALE_CONFIGS', {})
+                    scale_cfg = scale_configs.get(ch_str) if isinstance(scale_configs, dict) else None
+                    
+                    if scale_cfg and scale_cfg.get('enabled', False):
+                        low_volt = scale_cfg.get('low_voltage', 0.0)
+                        high_volt = scale_cfg.get('high_voltage', 10.0)
+                        low_val = scale_cfg.get('low_value', 0.0)
+                        high_val = scale_cfg.get('high_value', 100.0)
                         
                         denom = high_volt - low_volt
                         if abs(denom) > 1e-9:

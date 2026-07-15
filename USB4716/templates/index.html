@@ -137,8 +137,23 @@
                         <h2 style="font-size: 0.85rem; letter-spacing: 0.05em; color: var(--text-primary);">LINEAR SCALING (CALIBRATION)</h2>
                     </div>
 
+                    <!-- Channel selection target for scaling configuration -->
+                    <div class="form-group" style="margin-bottom: 0.75rem;">
+                        <label for="SCALE_CHANNEL_TARGET">Configure Calibration For</label>
+                        <select id="SCALE_CHANNEL_TARGET" style="background-color: var(--bg-nested); border: 1px solid var(--border-light); border-radius: 4px; padding: 0.5rem 0.75rem; color: var(--text-primary); font-family: inherit; font-size: 0.8rem; width: 100%;">
+                            <option value="0">Channel 0</option>
+                            <option value="1">Channel 1</option>
+                            <option value="2">Channel 2</option>
+                            <option value="3">Channel 3</option>
+                            <option value="4">Channel 4</option>
+                            <option value="5">Channel 5</option>
+                            <option value="6">Channel 6</option>
+                            <option value="7">Channel 7</option>
+                        </select>
+                    </div>
+
                     <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                        <input type="checkbox" id="SCALE_ENABLED" name="SCALE_ENABLED" style="accent-color: var(--accent-sky); cursor: pointer; width: auto; margin-right: 0.5rem;">
+                        <input type="checkbox" id="SCALE_ENABLED" style="accent-color: var(--accent-sky); cursor: pointer; width: auto; margin-right: 0.5rem;">
                         <label for="SCALE_ENABLED" style="cursor: pointer; text-transform: none; font-size: 0.75rem; letter-spacing: normal;">Enable Linear Sensor Scaling</label>
                     </div>
 
@@ -146,22 +161,22 @@
                         <div class="form-row" style="margin-bottom: 0.75rem;">
                             <div class="form-group">
                                 <label for="SCALE_LOW_VOLTAGE">Low Voltage (V)</label>
-                                <input type="number" id="SCALE_LOW_VOLTAGE" name="SCALE_LOW_VOLTAGE" step="any">
+                                <input type="number" id="SCALE_LOW_VOLTAGE" step="any">
                             </div>
                             <div class="form-group">
                                 <label for="SCALE_HIGH_VOLTAGE">High Voltage (V)</label>
-                                <input type="number" id="SCALE_HIGH_VOLTAGE" name="SCALE_HIGH_VOLTAGE" step="any">
+                                <input type="number" id="SCALE_HIGH_VOLTAGE" step="any">
                             </div>
                         </div>
 
                         <div class="form-row">
                             <div class="form-group">
                                 <label for="SCALE_LOW_VALUE">Low Value (Scaled Unit)</label>
-                                <input type="number" id="SCALE_LOW_VALUE" name="SCALE_LOW_VALUE" step="any">
+                                <input type="number" id="SCALE_LOW_VALUE" step="any">
                             </div>
                             <div class="form-group">
                                 <label for="SCALE_HIGH_VALUE">High Value (Scaled Unit)</label>
-                                <input type="number" id="SCALE_HIGH_VALUE" name="SCALE_HIGH_VALUE" step="any">
+                                <input type="number" id="SCALE_HIGH_VALUE" step="any">
                             </div>
                         </div>
                     </div>

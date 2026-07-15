@@ -11,9 +11,14 @@
   "MOCKUP_DB_DSN": "postgresql://admin:admin@localhost:5432/daq_db",
   "DB_PAGE_SIZE": 1000,
   "STATS_INTERVAL_SEC": 10,
-  "SCALE_ENABLED": false,
-  "SCALE_LOW_VOLTAGE": 0.0,
-  "SCALE_HIGH_VOLTAGE": 10.0,
-  "SCALE_LOW_VALUE": 0.0,
-  "SCALE_HIGH_VALUE": 100.0
+  "SCALE_CONFIGS": {
+    "0": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "1": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "2": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "3": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "4": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "5": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "6": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0},
+    "7": {"enabled": false, "low_voltage": 0.0, "high_voltage": 10.0, "low_value": 0.0, "high_value": 100.0}
+  }
 }
