@@ -58,9 +58,12 @@ import psycopg2.extras
 
 # ─── Import DB connection string from project config ─────────────────────────
 try:
-    from old.config import DB_DSN
+    from config import DB_DSN
 except ImportError:
-    DB_DSN = "postgresql://admin:admin@172.21.108.86:5432/daq_db"
+    try:
+        from old.config import DB_DSN
+    except ImportError:
+        DB_DSN = "postgresql://admin:admin@172.21.108.86:5432/daq_db"
 
 
 # ─── Helpers ─────────────────────────────────────────────────────────────────
