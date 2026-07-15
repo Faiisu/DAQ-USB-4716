@@ -18,7 +18,7 @@ app = Flask(__name__, template_folder='templates', static_folder='static')
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), '..', 'USB4716', 'config.json')
 
 def get_db_dsn():
-    """Reads the database connection string from config.json."""
+    """Reads the default database DSN from config.json."""
     try:
         with open(CONFIG_PATH, 'r') as f:
             cfg = json.load(f)
@@ -30,16 +30,44 @@ def get_db_dsn():
 
 @app.route('/')
 def home():
-    """Renders the main plotting dashboard."""
+    """Renders the main multi-plot workspace."""
     return render_template('index.html')
+
+@app.route('/api/db/default')
+def get_default_db():
+    """Returns the default DSN configured in config.json."""
+    return jsonify({'dsn': get_db_dsn()})
+
+@app.route('/api/db/test', methods=['POST'])
+def test_db_connection():
+    """Validates if a given DSN string connects successfully to PostgreSQL."""
+    data = request.json or {}
+    dsn = data.get('dsn')
+    if not dsn:
+        return jsonify({'status': 'error', 'message': 'No database URL provided.'}), 400
+    
+    conn = None
+    try:
+        # Run a simple query to verify connection
+        conn = psycopg2.connect(dsn, connect_timeout=3)
+        with conn.cursor() as cur:
+            cur.execute("SELECT 1;")
+        return jsonify({'status': 'success'})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)})
+    finally:
+        if conn:
+            conn.close()
 
 @app.route('/api/channels')
 def get_channels():
-    """Retrieves a list of available channels in the database."""
-    dsn = get_db_dsn()
+    """Retrieves a list of available channels in the database using the specified DSN."""
+    dsn_param = request.args.get('dsn')
+    dsn = dsn_param if dsn_param else get_db_dsn()
+    
     conn = None
     try:
-        conn = psycopg2.connect(dsn)
+        conn = psycopg2.connect(dsn, connect_timeout=3)
         with conn.cursor() as cur:
             cur.execute("SELECT DISTINCT channel FROM daq_samples ORDER BY channel;")
             channels = [row[0] for row in cur.fetchall()]
@@ -56,20 +84,23 @@ def get_data():
     """
     Retrieves time-series telemetry from the database for the DAQ service.
     Query Params:
+      - dsn: database DSN string (optional, falls back to config.json)
       - channel: integer (default 0)
       - last: seconds of history to fetch (default 60)
       - start: ISO datetime (optional)
       - end: ISO datetime (optional)
     """
+    dsn_param = request.args.get('dsn')
+    dsn = dsn_param if dsn_param else get_db_dsn()
+    
     channel = request.args.get('channel', default=0, type=int)
     last_sec = request.args.get('last', default=60, type=float)
     start_str = request.args.get('start', default=None)
     end_str = request.args.get('end', default=None)
 
-    dsn = get_db_dsn()
     conn = None
     try:
-        conn = psycopg2.connect(dsn)
+        conn = psycopg2.connect(dsn, connect_timeout=3)
         
         # Build query based on parameters
         if start_str and end_str:
@@ -154,15 +185,12 @@ def get_mock_data():
         times.append(t_cursor.isoformat())
         
         if service == 'musashi_ii':
-            # Simulated pressure: sine wave + noise around 120 kPa
             pressure = 120.0 + 6.0 * math.sin(t_seconds * 0.1) + random.normalvariate(0, 0.4)
-            # Simulated temperature: slow rising drift around 24.5 °C
             temp = 24.2 + 0.005 * t_seconds + random.normalvariate(0, 0.03)
             values_data['pressure'].append(round(pressure, 2))
             values_data['temp'].append(round(temp, 2))
             
         elif service == 'musashi_iv':
-            # Simulated robot coordinates (XYZ pathing steps)
             x = 45.0 + 15.0 * math.sin(t_seconds * 0.08) + random.normalvariate(0, 0.08)
             y = 50.0 + 12.0 * math.cos(t_seconds * 0.06) + random.normalvariate(0, 0.08)
             z = 12.0 + 1.5 * math.sin(t_seconds * 0.25) + random.normalvariate(0, 0.02)

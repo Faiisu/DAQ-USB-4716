@@ -1,19 +1,33 @@
-# MDDP Telemetry Visualizer: Developer Extension Guide
+# MDDP Database Plotter: Developer Extension Guide
 
-This guide explains the design patterns and extension points of the plotting service. It provides a step-by-step walkthrough for adding support for new database schemas and device types (such as Musashi II and Musashi IV) in the future.
+This guide explains the design patterns, connection testing, and extension interfaces for the multi-plot grid workspace. It walks through how to expand the plotter dashboard to support new database schemas and multi-trace services (such as Musashi II and Musashi IV).
 
 ---
 
-## 1. Current Architecture Overview
+## 1. Multi-Plot Grid Architecture Overview
 
-The plotting service acts as a standalone analytics client decoupled from the data ingestion pipelines:
+The Database Plotter acts as a stateless visualization dashboard capable of hosting multiple charts in a dynamic grid layout:
 
 ```
-[Database] ➔ [Flask API (app.py)] ➔ [Browser (Plotly.js)]
+                  ┌──────────────────────┐
+                  │  Portal Gateway      │
+                  └──────────┬───────────┘
+                             │ (Port 8084)
+                  ┌──────────▼───────────┐
+                  │  Database Plotter    │
+                  │  (Multi-Plot Grid)   │
+                  └────┬────────────┬────┘
+        (Query 1)      │            │      (Query 2)
+  ┌────────────────────▼──┐      ┌──▼────────────────────┐
+  │ [Plot 1: DAQ CH0]     │      │ [Plot 2: Musashi II]  │
+  │ DSN: pg://hostA/db    │      │ DSN: pg://hostB/db    │
+  └───────────────────────┘      └───────────────────────┘
 ```
 
-* **Backend (`app.py`)**: Fetches DSN from the shared `config.json`, establishes connection pools via `psycopg2`, and exposes endpoints `/api/channels` and `/api/data` to query data.
-* **Frontend (`app.js` / `index.html`)**: Renders interactive line plots using Plotly.js. Tooltips are formatted using `hovertemplate` to display millisecond precision (`%H:%M:%S.%L`), and drag-panning is enabled natively by setting `dragmode: 'pan'`.
+* **Dynamic Connection Test (`/api/db/test`)**: Validates DSN strings input by the user on the fly using `psycopg2` before creating the chart.
+* **Stateless Analytics API (`/api/data`)**: Accepts `dsn` as a query parameter. This allows each chart on the workspace to connect to independent host databases.
+* **Layout Manager**: Changes CSS grid columns class (`col-1`, `col-2`, `col-3`) and triggers `Plotly.Plots.resize()` to auto-scale charts to their container widths.
+* **Trace Drawing (`Plotly.react`)**: Efficiently repaints line charts and handles resizing without rebuilding elements.
 
 ---
 
@@ -53,16 +67,18 @@ SELECT create_hypertable('musashi_logs', 'time', if_not_exists => TRUE);
 ```
 
 ### Step 2: Add API Endpoints in `app.py`
-Extend `app.py` to route queries for the new service. You can introduce a `service` query parameter or add a dedicated endpoint `/api/musashi`:
+Extend `app.py` to route queries for the new service, supporting custom DSN parsing:
 
 ```python
 @app.route('/api/data/musashi')
 def get_musashi_data():
+    dsn_param = request.args.get('dsn')
+    dsn = dsn_param if dsn_param else get_db_dsn()
     last_sec = request.args.get('last', default=60, type=float)
-    dsn = get_db_dsn()
+    
     conn = None
     try:
-        conn = psycopg2.connect(dsn)
+        conn = psycopg2.connect(dsn, connect_timeout=3)
         query = """
             SELECT time, pressure, fluid_temp 
             FROM musashi_logs 
@@ -79,8 +95,10 @@ def get_musashi_data():
             
         return jsonify({
             'times': times,
-            'pressure': pressure,
-            'temp': temp
+            'data': {
+                'pressure': pressure,
+                'temp': temp
+            }
         })
     except Exception as e:
         return jsonify({'error': str(e)}), 500
@@ -89,51 +107,23 @@ def get_musashi_data():
             conn.close()
 ```
 
-### Step 3: Add UI Selector in `index.html`
-Add a dropdown selector to allow users to switch between the active telemetry view:
+### Step 3: Add UI Option in Modal Form
+Add option in [plot_service/templates/index.html](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/plot_service/templates/index.html) under `<select id="modal-service-select">`:
 
 ```html
-<!-- Add in index.html control-panel -->
-<div class="control-group">
-    <label for="service-select">ACTIVE SERVICE</label>
-    <select id="service-select" class="form-input">
-        <option value="daq" selected>DAQ USB-4716</option>
-        <option value="musashi2">Musashi II Dispenser</option>
-    </select>
-</div>
+<option value="musashi_ii">Musashi II Dispenser</option>
 ```
 
 ### Step 4: Map Visual Layouts in `app.js`
-Modify `static/app.js` to dynamically draw the plot based on the selected service:
+Modify `initPlotlyChart` and `queryPlotData` in [plot_service/static/app.js](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/plot_service/static/app.js) to dynamically configure line styling and parse endpoints:
 
 ```javascript
 // Add in static/app.js
-async function queryDatabase() {
-    const service = document.getElementById('service-select').value;
-    
-    if (service === 'musashi2') {
-        const res = await fetch(`/api/data/musashi?last=60`);
-        const data = await res.json();
-        
-        // Render dual-trace (Pressure + Temperature) on Plotly
-        const traces = [
-            {
-                x: data.times,
-                y: data.pressure,
-                name: 'Dispenser Pressure (kPa)',
-                line: { color: '#a855f7' } // Purple accent
-            },
-            {
-                x: data.times,
-                y: data.temp,
-                name: 'Fluid Temperature (°C)',
-                line: { color: '#f59e0b' } // Amber accent
-            }
-        ];
-        
-        Plotly.react('plotly-chart', traces, layout);
-    } else {
-        // Fallback to normal DAQ rendering...
+async function queryPlotData(plot) {
+    let url = '';
+    if (plot.service === 'musashi_ii') {
+        url = `/api/data/musashi?last=${plot.timeRange}&dsn=${encodeURIComponent(plot.dsn)}`;
     }
+    // Fetch and redraw using Plotly.react...
 }
 ```
