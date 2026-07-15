@@ -15,9 +15,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Simulate occasional background system activity logs
     setInterval(simulateSystemLog, 15000);
+
+    // Add interceptors to portal links to display log messages
+    setupPortalLinks();
 });
 
-// Update the real-time clock in the header (UTC time preferred for process alignment)
+// Update the real-time clock in the header (UTC format)
 function updateClock() {
     const clockEl = document.getElementById('realtime-clock');
     if (!clockEl) return;
@@ -30,7 +33,7 @@ function updateClock() {
     clockEl.textContent = `${hours}:${minutes}:${seconds} UTC`;
 }
 
-// Update uptime tracker since page was loaded
+// Update uptime tracker since landing page was loaded
 function updateUptime() {
     const uptimeEl = document.getElementById('uptime-counter');
     if (!uptimeEl) return;
@@ -43,57 +46,18 @@ function updateUptime() {
     uptimeEl.textContent = `${hours}:${minutes}:${seconds}`;
 }
 
-// Display a dynamic toast notification when clicking control modules
-function showToast(message, type = 'info') {
-    const toast = document.getElementById('toast');
-    const toastMsg = document.getElementById('toast-message');
-    if (!toast || !toastMsg) return;
-
-    toastMsg.textContent = message;
-    
-    // Set border accent color based on action type
-    if (type === 'blue') {
-        toast.style.borderColor = '#0ea5e9';
-    } else if (type === 'purple') {
-        toast.style.borderColor = '#a855f7';
-    } else if (type === 'emerald') {
-        toast.style.borderColor = '#10b981';
-    }
-
-    toast.classList.add('show');
-
-    // Hide after 3 seconds
-    setTimeout(() => {
-        toast.classList.remove('show');
-    }, 3000);
-}
-
-// Navigation event handler for module cards
-function navigateTo(moduleName) {
-    let message = '';
-    let themeColor = 'info';
-
-    switch (moduleName) {
-        case 'daq':
-            message = 'Navigating to DAQ USB-4716 Control Console...';
-            themeColor = 'blue';
-            appendLog('INFO', 'Initiating redirect sequence to DAQ telemetry view.');
-            break;
-        case 'musashi-ii':
-            message = 'Navigating to Musashi II Dispenser Controller...';
-            themeColor = 'purple';
-            appendLog('INFO', 'Connecting to Musashi II communication interface.');
-            break;
-        case 'musashi-iv':
-            message = 'Navigating to Musashi IV Robotic Dispenser node...';
-            themeColor = 'emerald';
-            appendLog('INFO', 'Establishing serial bridge over COM4.');
-            break;
-        default:
-            message = 'Loading selected module...';
-    }
-
-    showToast(message, themeColor);
+// Intercept portal link clicks to log the action in the console
+function setupPortalLinks() {
+    const links = document.querySelectorAll('.module-portal-link');
+    links.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const card = link.querySelector('.module-card');
+            const title = card.querySelector('h3').textContent;
+            const badge = card.querySelector('.status-badge').textContent.trim();
+            
+            appendLog('INFO', `Redirecting to ${title} Control Panel on ${badge}...`);
+        });
+    });
 }
 
 // Append new log lines to the scrolling terminal console footer
@@ -119,12 +83,12 @@ function appendLog(level, message) {
     consoleBody.scrollTop = consoleBody.scrollHeight;
 }
 
-// Simulate periodic hardware events for background logging realism
+// Simulate periodic ingestion events for background logging realism
 const dummyEvents = [
-    { level: 'INFO', msg: 'Database metrics sync completed. 0 packets dropped.' },
-    { level: 'INFO', msg: 'Heartbeat signal acknowledged from Musashi II controller.' },
-    { level: 'SUCCESS', msg: 'TimescaleDB hypertable optimized. Disk write latencies normal (<2ms).' },
-    { level: 'WARN', msg: 'High jitter detected on hardware clock. Aligning back-computation buffer.' },
+    { level: 'INFO', msg: 'Syncing portal metadata across distributed nodes.' },
+    { level: 'SUCCESS', msg: 'Telemetry database sync completed. 0 packets dropped.' },
+    { level: 'INFO', msg: 'Heartbeat signal acknowledged from Musashi II portal on Port 8082.' },
+    { level: 'WARN', msg: 'High jitter detected on DAQ hardware clock. Aligning back-computation buffer.' },
     { level: 'INFO', msg: 'Checking client connection handshakes...' }
 ];
 

@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Process Control Center</title>
+    <title>MDDP Data Ingestion Control Center</title>
     <!-- Outfit Font from Google Fonts -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -11,10 +11,6 @@
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
-    <!-- Background glowing decorative blobs -->
-    <div class="glow-blob blob-1"></div>
-    <div class="glow-blob blob-2"></div>
-
     <div class="dashboard-container">
         <!-- Header -->
         <header class="main-header">
@@ -25,179 +21,183 @@
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <h1>Process Control Center</h1>
-                    <span class="sub-text">Unified Hardware Automation Node</span>
+                    <h1>MDDP Data Ingestion Control Center</h1>
+                    <span class="sub-text">Unified Hardware Automation Portal</span>
                 </div>
             </div>
             <div class="header-status">
                 <div class="status-indicator">
                     <span class="pulse-dot green"></span>
-                    <span class="status-label">SYS OK</span>
+                    <span class="status-label">SYSTEM ONLINE</span>
                 </div>
-                <div class="clock-display" id="realtime-clock">--:--:--</div>
+                <div class="clock-display" id="realtime-clock">--:--:-- UTC</div>
             </div>
         </header>
 
         <!-- System Overview Section -->
         <section class="system-overview">
             <div class="overview-info">
-                <h2>Welcome to the Control Center</h2>
-                <p>Select a hardware control module below to monitor telemetry, configure parameters, and execute automated processes.</p>
+                <h2>Portal Gateway</h2>
+                <p>Launch individual device control panels hosted on dedicated ports. This distributed approach facilitates high availability and independent scaling of process modules.</p>
             </div>
             <div class="system-stats">
                 <div class="stat-card">
                     <span class="stat-title">DATABASE DSN</span>
-                    <span class="stat-value text-glow-blue" id="db-status">TimescaleDB</span>
+                    <span class="stat-value text-blue" id="db-status">TimescaleDB</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-title">NODE UPTIME</span>
+                    <span class="stat-title">PORTAL RUNTIME</span>
                     <span class="stat-value" id="uptime-counter">00:00:00</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-title">ACTIVE TASKS</span>
-                    <span class="stat-value" id="active-tasks-count">3 / 3 Ready</span>
+                    <span class="stat-title">SERVICES</span>
+                    <span class="stat-value" id="active-tasks-count">3 Channels Ready</span>
                 </div>
             </div>
         </section>
 
         <!-- Main Modules Grid -->
         <main class="modules-grid">
-            <!-- 1. DAQ Module Card -->
-            <div class="module-card" id="module-daq" onclick="navigateTo('daq')">
-                <div class="card-glow"></div>
-                <div class="card-content">
-                    <div class="module-icon icon-blue">
-                        <!-- Waveform / Wave Icon -->
-                        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
-                        </svg>
-                    </div>
-                    <div class="module-info">
-                        <div class="module-header">
-                            <h3>DAQ USB-4716</h3>
-                            <span class="status-badge badge-active">
-                                <span class="badge-dot pulse-dot"></span>
-                                Streaming
-                            </span>
+            <!-- 1. DAQ Module Card (Port 8081) -->
+            <a href="http://localhost:8081" class="module-portal-link" target="_blank">
+                <div class="module-card" id="module-daq">
+                    <div class="card-content">
+                        <div class="module-icon icon-blue">
+                            <!-- Waveform / Wave Icon -->
+                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
+                            </svg>
                         </div>
-                        <p class="module-desc">High-speed data acquisition interface. Monitors real-time analog inputs and pipelines samples into TimescaleDB.</p>
-                        <div class="module-meta">
-                            <div class="meta-item">
-                                <span class="meta-label">Rate</span>
-                                <span class="meta-val">1000 Hz</span>
+                        <div class="module-info">
+                            <div class="module-header">
+                                <h3>DAQ USB-4716</h3>
+                                <span class="status-badge badge-active">
+                                    <span class="badge-dot"></span>
+                                    Port 8081
+                                </span>
                             </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Channels</span>
-                                <span class="meta-val">CH 0</span>
+                            <p class="module-desc">High-speed analog-to-digital signal streaming interface. Configures clock rate, sections, and pipelines telemetry to TimescaleDB.</p>
+                            <div class="module-meta">
+                                <div class="meta-item">
+                                    <span class="meta-label">Protocol</span>
+                                    <span class="meta-val">HTTP / Websocket</span>
+                                </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Status</span>
+                                    <span class="meta-val">1000 Hz Streaming</span>
+                                </div>
                             </div>
                         </div>
+                        <div class="action-btn">
+                            <span>Launch Panel</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="7" y1="17" x2="17" y2="7"></line>
+                                <polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                        </div>
                     </div>
-                    <button class="action-btn btn-blue">
-                        <span>Initialize DAQ</span>
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                            <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
-                    </button>
                 </div>
-            </div>
+            </a>
 
-            <!-- 2. Musashi II Module Card -->
-            <div class="module-card" id="module-musashi-ii" onclick="navigateTo('musashi-ii')">
-                <div class="card-glow"></div>
-                <div class="card-content">
-                    <div class="module-icon icon-purple">
-                        <!-- Syringe / Nozzle Dispenser Icon -->
-                        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="5" y="2" width="14" height="6" rx="1" />
-                            <path d="M12 8v11M8 12h8M12 19l-2 3h4l-2-3" />
-                        </svg>
-                    </div>
-                    <div class="module-info">
-                        <div class="module-header">
-                            <h3>Musashi II</h3>
-                            <span class="status-badge badge-standby">
-                                <span class="badge-dot"></span>
-                                Standby
-                            </span>
+            <!-- 2. Musashi II Module Card (Port 8082) -->
+            <a href="http://localhost:8082" class="module-portal-link" target="_blank">
+                <div class="module-card" id="module-musashi-ii">
+                    <div class="card-content">
+                        <div class="module-icon icon-blue">
+                            <!-- Syringe / Nozzle Dispenser Icon -->
+                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="5" y="2" width="14" height="6" rx="1" />
+                                <path d="M12 8v11M8 12h8M12 19l-2 3h4l-2-3" />
+                            </svg>
                         </div>
-                        <p class="module-desc">Dispenser Unit II Control. Manages pressure configurations, syringe volume levels, and multi-axis displacement parameters.</p>
-                        <div class="module-meta">
-                            <div class="meta-item">
-                                <span class="meta-label">Fluid Temp</span>
-                                <span class="meta-val">24.5 °C</span>
+                        <div class="module-info">
+                            <div class="module-header">
+                                <h3>Musashi II</h3>
+                                <span class="status-badge badge-active">
+                                    <span class="badge-dot"></span>
+                                    Port 8082
+                                </span>
                             </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Pressure</span>
-                                <span class="meta-val">120 kPa</span>
+                            <p class="module-desc">Fluid dispenser controller node. Manages digital pressure values, syringe syringe capacity, and calibration thresholds.</p>
+                            <div class="module-meta">
+                                <div class="meta-item">
+                                    <span class="meta-label">Protocol</span>
+                                    <span class="meta-val">HTTP / REST</span>
+                                </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Status</span>
+                                    <span class="meta-val">Standby (120 kPa)</span>
+                                </div>
                             </div>
                         </div>
+                        <div class="action-btn">
+                            <span>Launch Panel</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="7" y1="17" x2="17" y2="7"></line>
+                                <polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                        </div>
                     </div>
-                    <button class="action-btn btn-purple">
-                        <span>Access Unit</span>
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                            <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
-                    </button>
                 </div>
-            </div>
+            </a>
 
-            <!-- 3. Musashi IV Module Card -->
-            <div class="module-card" id="module-musashi-iv" onclick="navigateTo('musashi-iv')">
-                <div class="card-glow"></div>
-                <div class="card-content">
-                    <div class="module-icon icon-emerald">
-                        <!-- Advanced Dual Syringe Dispenser / Robot Icon -->
-                        <svg viewBox="0 0 24 24" width="36" height="36" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <rect x="2" y="5" width="20" height="5" rx="1" />
-                            <path d="M6 10v9M18 10v9M12 10v5M6 19l-1 3h2l-1-3M18 19l-1 3h2l-1-3" />
-                        </svg>
-                    </div>
-                    <div class="module-info">
-                        <div class="module-header">
-                            <h3>Musashi IV</h3>
-                            <span class="status-badge badge-offline">
-                                <span class="badge-dot"></span>
-                                Disconnected
-                            </span>
+            <!-- 3. Musashi IV Module Card (Port 8083) -->
+            <a href="http://localhost:8083" class="module-portal-link" target="_blank">
+                <div class="module-card" id="module-musashi-iv">
+                    <div class="card-content">
+                        <div class="module-icon icon-blue">
+                            <!-- Advanced Dual Syringe Dispenser / Robot Icon -->
+                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <rect x="2" y="5" width="20" height="5" rx="1" />
+                                <path d="M6 10v9M18 10v9M12 10v5M6 19l-1 3h2l-1-3M18 19l-1 3h2l-1-3" />
+                            </svg>
                         </div>
-                        <p class="module-desc">Dispenser Unit IV Advanced Robotic Node. Handles high-precision micro-dispensing operations and dual-nozzle syringe patterns.</p>
-                        <div class="module-meta">
-                            <div class="meta-item">
-                                <span class="meta-label">COM Port</span>
-                                <span class="meta-val">COM4</span>
+                        <div class="module-info">
+                            <div class="module-header">
+                                <h3>Musashi IV</h3>
+                                <span class="status-badge badge-offline">
+                                    <span class="badge-dot"></span>
+                                    Port 8083
+                                </span>
                             </div>
-                            <div class="meta-item">
-                                <span class="meta-label">Status</span>
-                                <span class="meta-val">Uninitialized</span>
+                            <p class="module-desc">High-precision dual-nozzle dispenser robot control panel. Handles automated micro-dispensation profiles and path mappings.</p>
+                            <div class="module-meta">
+                                <div class="meta-item">
+                                    <span class="meta-label">Protocol</span>
+                                    <span class="meta-val">HTTP / Websocket</span>
+                                </div>
+                                <div class="meta-item">
+                                    <span class="meta-label">Status</span>
+                                    <span class="meta-val">Offline</span>
+                                </div>
                             </div>
                         </div>
+                        <div class="action-btn">
+                            <span>Launch Panel</span>
+                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                                <line x1="7" y1="17" x2="17" y2="7"></line>
+                                <polyline points="7 7 17 7 17 17"></polyline>
+                            </svg>
+                        </div>
                     </div>
-                    <button class="action-btn btn-emerald">
-                        <span>Connect Node</span>
-                        <svg viewBox="0 0 24 24" width="16" height="16" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
-                            <line x1="5" y1="12" x2="19" y2="12"></line>
-                            <polyline points="12 5 19 12 12 19"></polyline>
-                        </svg>
-                    </button>
                 </div>
-            </div>
+            </a>
         </main>
 
-        <!-- Dynamic Notification / Log Bar -->
+        <!-- System Logs Console Footer -->
         <footer class="console-footer">
             <div class="console-header">
                 <div class="console-title">
                     <span class="terminal-dot"></span>
-                    <span>System Event Logs</span>
+                    <span>System Ingestion Events</span>
                 </div>
-                <span class="log-indicator">Listening on port 5432</span>
+                <span class="log-indicator">MDDP Gateway Logger</span>
             </div>
             <div class="console-body" id="log-console">
-                <div class="log-line"><span class="log-time">[22:08:47]</span> <span class="log-tag tag-info">INFO</span> Web server initialized successfully on node Refactor.</div>
-                <div class="log-line"><span class="log-time">[22:08:52]</span> <span class="log-tag tag-success">SUCCESS</span> TimescaleDB connection established. Listening for DAQ packets.</div>
-                <div class="log-line"><span class="log-time">[22:09:00]</span> <span class="log-tag tag-warning">WARN</span> Musashi IV connection interface could not map serial port COM4. Retrying in background...</div>
+                <div class="log-line"><span class="log-time">[22:33:35]</span> <span class="log-tag tag-info">INFO</span> MDDP Data Ingestion Control Center initialized.</div>
+                <div class="log-line"><span class="log-time">[22:33:38]</span> <span class="log-tag tag-success">ONLINE</span> DAQ panel routing active on port 8081.</div>
+                <div class="log-line"><span class="log-time">[22:33:40]</span> <span class="log-tag tag-success">ONLINE</span> Musashi II dispenser panel routing active on port 8082.</div>
+                <div class="log-line"><span class="log-time">[22:33:42]</span> <span class="log-tag tag-warning">WARN</span> Musashi IV service on port 8083 is currently unreachable. Retrying polling sync...</div>
             </div>
         </footer>
     </div>
