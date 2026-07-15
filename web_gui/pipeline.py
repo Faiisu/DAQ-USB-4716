@@ -9,8 +9,10 @@ Supports both mockup (synthetic waveform) and real hardware modes.
 """
 
 import math
+import os
 import queue
 import random
+import sys
 import threading
 import time
 from datetime import datetime, timezone
@@ -20,13 +22,24 @@ import psycopg2.extras
 
 import web_gui.db as db_module
 
+# ── Ensure project root is on sys.path so Automation.BDaq can be found ────────
+# The old stream_to_db.py did this explicitly; we must do the same here
+# because the Automation SDK folder lives at the project root level.
+_PROJECT_ROOT = os.path.abspath(
+    os.path.join(os.path.dirname(__file__), os.path.pardir)
+)
+if _PROJECT_ROOT not in sys.path:
+    sys.path.insert(0, _PROJECT_ROOT)
+
+BDAQ_IMPORT_ERROR = None
 try:
     from Automation.BDaq import *
     from Automation.BDaq.WaveformAiCtrl import WaveformAiCtrl
     from Automation.BDaq.BDaqApi import AdxEnumToString, BioFailed
     BDAQ_AVAILABLE = True
-except (ImportError, Exception):
+except Exception as _exc:
     BDAQ_AVAILABLE = False
+    BDAQ_IMPORT_ERROR = str(_exc)
 
 # ── Shared State ──────────────────────────────────────────────────────────────
 
@@ -250,9 +263,10 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
                 daq_name   = "RealDAQ"
 
             else:
+                detail = BDAQ_IMPORT_ERROR or "unknown reason"
                 err = (
-                    "Advantech BDaq SDK is not available. "
-                    "Install the SDK to use real hardware mode."
+                    "Advantech BDaq SDK is not available: "
+                    f"{detail}"
                 )
                 emit_log(err, "error")
                 with _stats_lock:
