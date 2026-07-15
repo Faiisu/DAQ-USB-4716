@@ -7,16 +7,18 @@ echo          MDDP Ingestion Control Suite Startup
 echo ==========================================================
 
 rem 1. Start Main Portal Gateway (Port 8080)
-echo [SYSTEM] Starting Ingestion Portal on http://localhost:8080...
+echo [SYSTEM] Starting Ingestion Portal on Port 8080 (all interfaces)...
 start "MDDP_PORTAL_HUB" /min python -m http.server 8080 --directory portal
 
 rem 2. Start DAQ USB-4716 Control Panel (Port 8081)
-echo [SYSTEM] Starting DAQ Control Panel on http://localhost:8081...
+echo [SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)...
 start "MDDP_DAQ_PANEL" /min python USB4716/web_gui.py
 
-rem 3. Start Telemetry Plotter Service (Port 8084)
-echo [SYSTEM] Starting Telemetry Visualizer on http://localhost:8084...
+rem 3. Start Database Plotter (Port 8084)
+echo [SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)...
 start "MDDP_PLOTTER_SERVICE" /min python plot_service/app.py
 
 echo [SYSTEM] Services launched in background.
+echo [SYSTEM] Accessible locally at http://localhost:8080
+echo [SYSTEM] Accessible network-wide at http://^<HOST_IP^>:8080
 echo ==========================================================

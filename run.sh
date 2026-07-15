@@ -34,19 +34,21 @@ echo "         MDDP Ingestion Control Suite Startup"
 echo "=========================================================="
 
 # 1. Start Main Portal Gateway (Port 8080)
-echo "[SYSTEM] Starting Ingestion Portal on http://localhost:8080..."
+echo "[SYSTEM] Starting Ingestion Portal on Port 8080 (all interfaces)..."
 $PYTHON_BIN -m http.server 8080 --directory portal >/dev/null 2>&1 &
 echo $! > "$PORTAL_PID_FILE"
 
 # 2. Start DAQ USB-4716 Control Panel (Port 8081)
-echo "[SYSTEM] Starting DAQ Control Panel on http://localhost:8081..."
+echo "[SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)..."
 $PYTHON_BIN USB4716/web_gui.py >/dev/null 2>&1 &
 echo $! > "$DAQ_PID_FILE"
 
-# 3. Start Telemetry Plotter Service (Port 8084)
-echo "[SYSTEM] Starting Telemetry Visualizer on http://localhost:8084..."
+# 3. Start Database Plotter (Port 8084)
+echo "[SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)..."
 $PYTHON_BIN plot_service/app.py >/dev/null 2>&1 &
 echo $! > "$PLOTTER_PID_FILE"
 
 echo "[SYSTEM] Services launched in background."
+echo "[SYSTEM] Accessible locally at http://localhost:8080"
+echo "[SYSTEM] Accessible network-wide at http://<HOST_IP>:8080"
 echo "=========================================================="
