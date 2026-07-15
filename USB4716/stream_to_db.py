@@ -241,6 +241,8 @@ def db_writer_thread():
                     if abs(denom) > 1e-9:
                         value = low_val + ((value - low_volt) * (high_val - low_val)) / denom
                 
+                # Round value to 3 decimal places (.000 float format)
+                value = round(value, 3)
                 rows.append((sample_ts, config.START_CHANNEL + ch, value))
 
         # ── Batch INSERT ──
