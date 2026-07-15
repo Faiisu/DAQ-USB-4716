@@ -19,6 +19,7 @@ document.addEventListener('DOMContentLoaded', () => {
     document.getElementById('empty-state-add-btn').addEventListener('click', openModal);
     document.getElementById('close-modal-btn').addEventListener('click', closeModal);
     document.getElementById('modal-service-select').addEventListener('change', handleModalServiceChange);
+    document.getElementById('modal-mode-select').addEventListener('change', handleModalModeChange);
     document.getElementById('test-conn-btn').addEventListener('click', testDatabaseConnection);
     document.getElementById('create-plot-form').addEventListener('submit', handleCreatePlotSubmit);
 
@@ -66,6 +67,9 @@ function openModal() {
         document.getElementById('modal-db-dsn').value = defaultDsn;
     }
     resetConnectionStatus();
+    // Default mode setup
+    document.getElementById('modal-mode-select').value = 'live';
+    handleModalModeChange();
 }
 
 function closeModal() {
@@ -90,6 +94,33 @@ function handleModalServiceChange() {
     } else {
         daqGroup.classList.add('hidden');
     }
+}
+
+// Handle Live vs Static toggle changes on the Modal Form
+function handleModalModeChange() {
+    const mode = document.getElementById('modal-mode-select').value;
+    const liveGroup = document.getElementById('modal-live-range-group');
+    const staticGroup = document.getElementById('modal-static-range-group');
+    
+    if (mode === 'live') {
+        liveGroup.classList.remove('hidden');
+        staticGroup.classList.add('hidden');
+    } else {
+        liveGroup.classList.add('hidden');
+        staticGroup.classList.remove('hidden');
+        
+        // Populate default custom times (start: 5 mins ago, end: now)
+        const now = new Date();
+        const start = new Date(now.getTime() - 5 * 60 * 1000);
+        document.getElementById('modal-start-datetime').value = toLocalISOString(start);
+        document.getElementById('modal-end-datetime').value = toLocalISOString(now);
+    }
+}
+
+// Helper to format datetime-local input strings
+function toLocalISOString(date) {
+    const tzOffset = date.getTimezoneOffset() * 60000;
+    return (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
 }
 
 // Submit DSN to backend connection tester
@@ -166,7 +197,22 @@ function handleCreatePlotSubmit(e) {
     const service = document.getElementById('modal-service-select').value;
     const dsn = document.getElementById('modal-db-dsn').value.trim();
     const channel = parseInt(document.getElementById('modal-channel-select').value, 10);
-    const timeRange = parseInt(document.getElementById('modal-range-select').value, 10);
+    const mode = document.getElementById('modal-mode-select').value;
+
+    let timeRange = 60;
+    let startVal = '';
+    let endVal = '';
+
+    if (mode === 'live') {
+        timeRange = parseInt(document.getElementById('modal-range-select').value, 10);
+    } else {
+        startVal = document.getElementById('modal-start-datetime').value;
+        endVal = document.getElementById('modal-end-datetime').value;
+        if (!startVal || !endVal) {
+            alert("Please input both start and end datetimes.");
+            return;
+        }
+    }
 
     const plotId = Date.now();
     const newPlot = {
@@ -174,7 +220,10 @@ function handleCreatePlotSubmit(e) {
         service: service,
         dsn: dsn,
         channel: channel,
+        mode: mode,
         timeRange: timeRange,
+        startDatetime: startVal,
+        endDatetime: endVal,
         intervalId: null
     };
 
@@ -182,12 +231,28 @@ function handleCreatePlotSubmit(e) {
     renderPlotCard(newPlot);
     initPlotlyChart(newPlot);
     
-    // Start interval querying
-    newPlot.intervalId = setInterval(() => queryPlotData(newPlot), 1000);
-    queryPlotData(newPlot); // Initial draw
+    // Start interval querying only if in LIVE mode
+    if (mode === 'live') {
+        newPlot.intervalId = setInterval(() => queryPlotData(newPlot), 1000);
+    }
+    
+    // Trigger initial query
+    queryPlotData(newPlot); 
 
     closeModal();
-    showToast(`Plot created successfully (${service.toUpperCase()})`);
+    showToast(`Plot created successfully (${service.toUpperCase()} | ${mode.toUpperCase()})`);
+}
+
+// Helper to format timestamps inside static footer labels
+function formatFooterDate(isoStr) {
+    if (!isoStr) return '--';
+    const d = new Date(isoStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const hrs = String(d.getHours()).padStart(2, '0');
+    const mins = String(d.getMinutes()).padStart(2, '0');
+    const secs = String(d.getSeconds()).padStart(2, '0');
+    return `${day}/${month} ${hrs}:${mins}:${secs}`;
 }
 
 // Render dynamic card markup into grid
@@ -207,12 +272,40 @@ function renderPlotCard(plot) {
     else if (plot.service === 'musashi_ii') titleText = 'Musashi II Dispenser';
     else if (plot.service === 'musashi_iv') titleText = 'Musashi IV Robot';
 
-    // Build card markup
+    // Footer config layout: range selector for live, text labels for static
+    let footerControlsHtml = '';
+    if (plot.mode === 'live') {
+        footerControlsHtml = `
+            ${plot.service === 'daq' ? `
+            <select class="footer-select" onchange="updatePlotChannel(${plot.id}, this.value)">
+                <option value="0" ${plot.channel === 0 ? 'selected' : ''}>CH 0</option>
+                <option value="1" ${plot.channel === 1 ? 'selected' : ''}>CH 1</option>
+                <option value="2" ${plot.channel === 2 ? 'selected' : ''}>CH 2</option>
+                <option value="3" ${plot.channel === 3 ? 'selected' : ''}>CH 3</option>
+            </select>
+            ` : ''}
+            <select class="footer-select" onchange="updatePlotTimeRange(${plot.id}, this.value)">
+                <option value="30" ${plot.timeRange === 30 ? 'selected' : ''}>30s</option>
+                <option value="60" ${plot.timeRange === 60 ? 'selected' : ''}>1m</option>
+                <option value="300" ${plot.timeRange === 300 ? 'selected' : ''}>5m</option>
+                <option value="900" ${plot.timeRange === 900 ? 'selected' : ''}>15m</option>
+            </select>
+        `;
+    } else {
+        footerControlsHtml = `
+            <span class="footer-meta" style="color: var(--accent-sky); font-weight: 500;">
+                RANGE: ${formatFooterDate(plot.startDatetime)} - ${formatFooterDate(plot.endDatetime)}
+            </span>
+        `;
+    }
+
+    // Build card markup with status indicator badges
     card.innerHTML = `
         <div class="plot-card-header">
             <div class="plot-title-block">
-                <span class="pulse-dot green"></span>
+                <span class="pulse-dot ${plot.mode === 'live' ? 'green' : 'grey'}" style="background-color: ${plot.mode === 'live' ? 'var(--accent-emerald)' : 'var(--text-muted)'}; box-shadow: ${plot.mode === 'live' ? '0 0 6px var(--accent-emerald)' : 'none'};"></span>
                 <h3>${titleText}</h3>
+                <span class="card-badge ${plot.mode}">${plot.mode}</span>
             </div>
             <button class="delete-plot-btn" onclick="deletePlot(${plot.id})">&times;</button>
         </div>
@@ -222,22 +315,7 @@ function renderPlotCard(plot) {
         <div class="plot-card-footer">
             <div class="footer-meta" title="${plot.dsn}">DB: ${plot.dsn}</div>
             <div class="footer-controls">
-                <!-- Inline Channel Selector (DAQ only) -->
-                ${plot.service === 'daq' ? `
-                <select class="footer-select" onchange="updatePlotChannel(${plot.id}, this.value)">
-                    <option value="0" ${plot.channel === 0 ? 'selected' : ''}>CH 0</option>
-                    <option value="1" ${plot.channel === 1 ? 'selected' : ''}>CH 1</option>
-                    <option value="2" ${plot.channel === 2 ? 'selected' : ''}>CH 2</option>
-                    <option value="3" ${plot.channel === 3 ? 'selected' : ''}>CH 3</option>
-                </select>
-                ` : ''}
-                <!-- Inline Time Window Selector -->
-                <select class="footer-select" onchange="updatePlotTimeRange(${plot.id}, this.value)">
-                    <option value="30" ${plot.timeRange === 30 ? 'selected' : ''}>30s</option>
-                    <option value="60" ${plot.timeRange === 60 ? 'selected' : ''}>1m</option>
-                    <option value="300" ${plot.timeRange === 300 ? 'selected' : ''}>5m</option>
-                    <option value="900" ${plot.timeRange === 900 ? 'selected' : ''}>15m</option>
-                </select>
+                ${footerControlsHtml}
             </div>
         </div>
     `;
@@ -344,13 +422,25 @@ function initPlotlyChart(plot) {
     Plotly.newPlot(chartDivId, traces, layout, config);
 }
 
-// Fetch database records for a specific plot and refresh the Plotly layout
+// Fetch database records for a specific plot card and refresh the Plotly layout
 async function queryPlotData(plot) {
     let url = '';
+    
+    // Choose endpoint based on service type
     if (plot.service === 'daq') {
-        url = `/api/data?channel=${plot.channel}&last=${plot.timeRange}&dsn=${encodeURIComponent(plot.dsn)}`;
+        url = `/api/data?channel=${plot.channel}&dsn=${encodeURIComponent(plot.dsn)}`;
     } else {
-        url = `/api/data/mock?service=${plot.service}&last=${plot.timeRange}`;
+        url = `/api/data/mock?service=${plot.service}`;
+    }
+
+    // Append timeframe range queries depending on mode
+    if (plot.mode === 'live') {
+        url += `&last=${plot.timeRange}`;
+    } else {
+        // Convert datetime-local picker string to UTC ISO format for backend parsing
+        const startISO = new Date(plot.startDatetime).toISOString();
+        const endISO = new Date(plot.endDatetime).toISOString();
+        url += `&start=${startISO}&end=${endISO}`;
     }
 
     try {
@@ -421,7 +511,7 @@ async function queryPlotData(plot) {
             });
         }
 
-        // Apply traces to layout
+        // Apply traces to layout using react (highly performant repaint)
         Plotly.react(chartDivId, traces, chartDiv.layout);
         
     } catch (e) {
@@ -438,6 +528,7 @@ function updatePlotChannel(plotId, val) {
     }
 }
 
+// Inline Time window changes
 function updatePlotTimeRange(plotId, val) {
     const plot = activePlots.find(p => p.id === plotId);
     if (plot) {

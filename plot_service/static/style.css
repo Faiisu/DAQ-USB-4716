@@ -593,3 +593,24 @@ body {
         justify-content: space-between;
     }
 }
+
+/* Card Badges for Live/Static modes */
+.card-badge {
+    font-size: 0.58rem;
+    font-weight: 700;
+    letter-spacing: 0.06em;
+    padding: 0.2rem 0.5rem;
+    border-radius: 3px;
+    text-transform: uppercase;
+    margin-left: 0.5rem;
+}
+.card-badge.live {
+    background-color: rgba(16, 185, 129, 0.08);
+    border: 1px solid rgba(16, 185, 129, 0.25);
+    color: var(--accent-emerald);
+}
+.card-badge.static {
+    background-color: rgba(100, 116, 139, 0.08);
+    border: 1px solid rgba(100, 116, 139, 0.25);
+    color: var(--text-secondary);
+}

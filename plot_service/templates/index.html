@@ -113,10 +113,9 @@
 
                     <div class="form-divider"></div>
 
-                    <!-- 3. Telemetry parameters -->
+                    <!-- 3. Telemetry Parameters (Channel selection) -->
                     <div class="form-row">
-                        <!-- DAQ Specific Channel (toggled) -->
-                        <div class="form-group" id="modal-daq-group">
+                        <div class="form-group" id="modal-daq-group" style="flex: 1;">
                             <label for="modal-channel-select">CHANNEL</label>
                             <select id="modal-channel-select" class="form-input">
                                 <option value="0">Channel 0</option>
@@ -126,15 +125,35 @@
                             </select>
                         </div>
 
-                        <!-- Time Window -->
-                        <div class="form-group">
-                            <label for="modal-range-select">TIME WINDOW</label>
-                            <select id="modal-range-select" class="form-input">
-                                <option value="30">30 Seconds</option>
-                                <option value="60" selected>1 Minute</option>
-                                <option value="300">5 Minutes</option>
-                                <option value="900">15 Minutes</option>
+                        <!-- Static vs Live mode -->
+                        <div class="form-group" style="flex: 1;">
+                            <label for="modal-mode-select">PLOT MODE</label>
+                            <select id="modal-mode-select" class="form-input">
+                                <option value="live" selected>Live (Rolling)</option>
+                                <option value="static">Static (Historical)</option>
                             </select>
+                        </div>
+                    </div>
+
+                    <!-- 4. Conditional Time Range Configurations -->
+                    <div class="form-group" id="modal-live-range-group">
+                        <label for="modal-range-select">ROLLING WINDOW</label>
+                        <select id="modal-range-select" class="form-input">
+                            <option value="30">30 Seconds</option>
+                            <option value="60" selected>1 Minute</option>
+                            <option value="300">5 Minutes</option>
+                            <option value="900">15 Minutes</option>
+                        </select>
+                    </div>
+
+                    <div class="form-row hidden" id="modal-static-range-group">
+                        <div class="form-group" style="flex: 1;">
+                            <label for="modal-start-datetime">START TIME</label>
+                            <input type="datetime-local" id="modal-start-datetime" class="form-input">
+                        </div>
+                        <div class="form-group" style="flex: 1;">
+                            <label for="modal-end-datetime">END TIME</label>
+                            <input type="datetime-local" id="modal-end-datetime" class="form-input">
                         </div>
                     </div>
 
