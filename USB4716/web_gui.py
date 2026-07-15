@@ -8,23 +8,27 @@ import json
 import subprocess
 import threading
 import re
+import time
+import signal
 from flask import Flask, render_template, jsonify, request
 from flask_socketio import SocketIO, emit
 
 app = Flask(__name__, template_folder='templates', static_folder='static')
 socketio = SocketIO(app, cors_allowed_origins="*")
 
-# Absolute path of configuration file config.json
+# State files to persist process metadata across restarts
 CONFIG_PATH = os.path.join(os.path.dirname(__file__), 'config.json')
+PID_PATH = os.path.join(os.path.dirname(__file__), '.daq_process.pid')
+MODE_PATH = os.path.join(os.path.dirname(__file__), '.daq_process.mode')
+LOG_PATH = os.path.join(os.path.dirname(__file__), 'daq_pipeline.log')
 
-# State variables for background subprocess tracking
-process = None
-process_thread = None
-is_running = False
-run_mode = "mockup" # Either "real" or "mockup"
+# Global monitoring variables
+tail_thread = None
+stop_tail_event = threading.Event()
+last_stats = {}
 
 def read_config():
-    """Reads static configurations from config.json."""
+    """Reads configuration parameters from config.json."""
     try:
         with open(CONFIG_PATH, 'r') as f:
             return json.load(f)
@@ -33,7 +37,7 @@ def read_config():
         return {}
 
 def write_config(config_data):
-    """Writes updated configurations back to config.json."""
+    """Writes configuration parameters to config.json."""
     try:
         with open(CONFIG_PATH, 'w') as f:
             json.dump(config_data, f, indent=2)
@@ -42,62 +46,145 @@ def write_config(config_data):
         print(f"Error writing config.json: {e}")
         return False
 
-# Regular expression to capture and parse telemetry stats log line:
-# [STATS] polled=1,024 | written=1,024 | dropped_batches=0 (0.0%) | db_errors=0 | queue=0/200
+# Cross-platform utility to check if a process is still active on the host OS
+def is_pid_running(pid):
+    if sys.platform == "win32":
+        try:
+            # Query tasklist on Windows
+            output = subprocess.check_output(f'tasklist /fi "PID eq {pid}"', shell=True)
+            return str(pid) in str(output)
+        except Exception:
+            return False
+    else:
+        try:
+            # Query signal 0 (null signal) on POSIX
+            os.kill(pid, 0)
+            return True
+        except (OSError, ProcessLookupError):
+            return False
+
+# Retrieve the running process info if active
+def get_running_process():
+    if os.path.exists(PID_PATH) and os.path.exists(MODE_PATH):
+        try:
+            with open(PID_PATH, 'r') as f:
+                pid = int(f.read().strip())
+            with open(MODE_PATH, 'r') as f:
+                mode = f.read().strip()
+            
+            if is_pid_running(pid):
+                return pid, mode
+        except Exception as e:
+            print(f"Error checking active PID file: {e}")
+    return None, None
+
+# Terminate process by PID cross-platform
+def terminate_pid(pid):
+    if sys.platform == "win32":
+        try:
+            subprocess.run(f"taskkill /pid {pid} /t /f", shell=True)
+        except Exception as e:
+            print(f"Error terminating Windows PID {pid}: {e}")
+    else:
+        try:
+            os.kill(pid, 15) # SIGTERM (graceful exit)
+            # Wait up to 3 seconds for exit, force kill if stuck
+            for _ in range(30):
+                if not is_pid_running(pid):
+                    return
+                time.sleep(0.1)
+            os.kill(pid, 9) # SIGKILL
+        except ProcessLookupError:
+            pass
+        except OSError as e:
+            print(f"Error terminating Unix PID {pid}: {e}")
+
+# Regex to extract statistics from the log file
+# E.g.: [STATS] polled=1,024 | written=1,024 | dropped_batches=0 (0.0%) | db_errors=0 | queue=0/200
 STATS_REGEX = re.compile(
     r"\[STATS\] polled=(?P<polled>[0-9,]+) \| written=(?P<written>[0-9,]+) \| dropped_batches=(?P<dropped>[0-9]+) \((?P<loss_pct>[0-9\.]+)%\) \| db_errors=(?P<errors>[0-9]+) \| queue=(?P<qsize>[0-9]+)/(?P<qmax>[0-9]+)"
 )
 
-def monitor_process_output(proc):
-    """Background thread worker to poll stdout stream of DAQ subprocess."""
-    global is_running, process
+def parse_and_emit_stats(line):
+    """Parses stats from a line and updates global caches."""
+    global last_stats
+    match = STATS_REGEX.search(line)
+    if match:
+        last_stats = {
+            'polled': match.group('polled'),
+            'written': match.group('written'),
+            'dropped': match.group('dropped'),
+            'loss_pct': match.group('loss_pct'),
+            'errors': match.group('errors'),
+            'queue_util': f"{match.group('qsize')}/{match.group('qmax')}"
+        }
+        socketio.emit('stats_update', last_stats)
+
+def tail_log_file():
+    """Background loop tailing the physical log file to feed sockets."""
+    global last_stats
+    print("[SYSTEM] Log tailing thread started.")
+    
+    # Wait until log file is created
+    while not os.path.exists(LOG_PATH) and not stop_tail_event.is_set():
+        time.sleep(0.2)
+        
     try:
-        while True:
-            line = proc.stdout.readline()
-            if not line:
-                break
+        with open(LOG_PATH, 'r', errors='replace') as f:
+            # Start tailing from the end of the file
+            f.seek(0, os.SEEK_END)
             
-            # Decode byte lines from stream
-            decoded_line = line.decode('utf-8', errors='replace').strip()
-            
-            # Broadcast raw logs to web dashboard console
-            socketio.emit('log_update', {'log': decoded_line})
-            
-            # Match logs for stats update telemetry
-            match = STATS_REGEX.search(decoded_line)
-            if match:
-                stats_data = {
-                    'polled': match.group('polled'),
-                    'written': match.group('written'),
-                    'dropped': match.group('dropped'),
-                    'loss_pct': match.group('loss_pct'),
-                    'errors': match.group('errors'),
-                    'queue_util': f"{match.group('qsize')}/{match.group('qmax')}"
-                }
-                socketio.emit('stats_update', stats_data)
+            while not stop_tail_event.is_set():
+                pid, _ = get_running_process()
+                if pid is None:
+                    # DAQ process stopped; close tailing thread
+                    break
+                    
+                line = f.readline()
+                if not line:
+                    time.sleep(0.1)
+                    continue
+                
+                decoded_line = line.strip()
+                # Broadcast log line to connected sockets
+                socketio.emit('log_update', {'log': decoded_line})
+                parse_and_emit_stats(decoded_line)
                 
     except Exception as e:
-        print(f"Error reading subprocess stdout: {e}")
+        print(f"Error tailing log file: {e}")
     finally:
-        proc.wait()
-        is_running = False
-        process = None
-        socketio.emit('status_change', {'is_running': False})
-        socketio.emit('log_update', {'log': '[SYSTEM] Ingestion pipeline process terminated.'})
+        print("[SYSTEM] Log tailing thread finished.")
+
+def start_tailing():
+    """Starts a new background tailing thread if not active."""
+    global tail_thread, stop_tail_event
+    stop_tail_event.clear()
+    if tail_thread is None or not tail_thread.is_alive():
+        tail_thread = threading.Thread(target=tail_log_file, daemon=True)
+        tail_thread.start()
+
+def get_last_logs(count=50):
+    """Retrieves last few log lines for newly connected clients."""
+    if not os.path.exists(LOG_PATH):
+        return []
+    try:
+        with open(LOG_PATH, 'r', errors='replace') as f:
+            lines = f.readlines()
+            return [line.strip() for line in lines[-count:]]
+    except Exception as e:
+        print(f"Error reading historical logs: {e}")
+        return []
 
 @app.route('/')
 def home():
-    """Renders the central control panel page."""
     return render_template('index.html')
 
 @app.route('/api/config', methods=['GET'])
 def get_config():
-    """API endpoint to get config parameters."""
     return jsonify(read_config())
 
 @app.route('/api/config', methods=['POST'])
 def save_config():
-    """API endpoint to update config parameters."""
     config_data = request.json
     if write_config(config_data):
         return jsonify({'status': 'success'})
@@ -105,18 +192,40 @@ def save_config():
 
 @app.route('/api/status', methods=['GET'])
 def get_status():
-    """API endpoint to check running state of processes."""
+    pid, mode = get_running_process()
     return jsonify({
-        'is_running': is_running,
-        'run_mode': run_mode
+        'is_running': pid is not None,
+        'run_mode': mode or 'mockup'
     })
+
+@socketio.on('connect')
+def handle_connect():
+    """Fires when browser client opens or refreshes the page."""
+    pid, mode = get_running_process()
+    is_active = pid is not None
+    
+    # 1. Update client running status immediately
+    emit('status_change', {'is_running': is_active, 'mode': mode or 'mockup'})
+    
+    # 2. Feed last stats if process is active
+    if is_active and last_stats:
+        emit('stats_update', last_stats)
+        
+    # 3. Stream historical logs so terminal console is populated
+    logs = get_last_logs(50)
+    for log_line in logs:
+        emit('log_update', {'log': log_line})
+        
+    # Start tailing if a process is already running
+    if is_active:
+        start_tailing()
 
 @socketio.on('start_daq')
 def handle_start(data):
-    """WebSocket command trigger to run DAQ subprocess."""
-    global process, process_thread, is_running, run_mode
-    if is_running:
-        emit('log_update', {'log': '[SYSTEM] Warning: Ingestion process already running.'})
+    """Spawns DAQ script in a detached process."""
+    pid, mode = get_running_process()
+    if pid is not None:
+        emit('log_update', {'log': '[SYSTEM] Warning: Ingestion process is already running.'})
         return
         
     run_mode = data.get('mode', 'mockup')
@@ -124,48 +233,76 @@ def handle_start(data):
     script_path = os.path.join(os.path.dirname(__file__), script_name)
     
     try:
-        # Pass unbuffered flag so Python prints logs immediately to stdout stream
+        # Clear/truncate old log file session
+        with open(LOG_PATH, 'w') as f:
+            f.write(f"[SYSTEM] Log session initialized for mode={run_mode.upper()}\n")
+            
+        # Open log file to pipe subprocess output
+        log_file = open(LOG_PATH, 'a')
+        
         env = os.environ.copy()
         env["PYTHONUNBUFFERED"] = "1"
         
-        process = subprocess.Popen(
+        # Spawn process completely detached using shell redirects
+        proc = subprocess.Popen(
             [sys.executable, script_path],
-            stdout=subprocess.PIPE,
+            stdout=log_file,
             stderr=subprocess.STDOUT,
-            env=env
+            env=env,
+            close_fds=True # Detach file descriptors in parent
         )
         
-        is_running = True
+        # Close file handle in parent process
+        log_file.close()
+        
+        # Persist PID & Mode metadata
+        with open(PID_PATH, 'w') as f:
+            f.write(str(proc.pid))
+        with open(MODE_PATH, 'w') as f:
+            f.write(run_mode)
+            
+        # Update sockets immediately
         socketio.emit('status_change', {'is_running': True, 'mode': run_mode})
-        socketio.emit('log_update', {'log': f'[SYSTEM] Spawning subprocess: {script_name}'})
+        socketio.emit('log_update', {'log': f'[SYSTEM] Spawning process (PID: {proc.pid})'})
         
-        # Start background listener thread
-        process_thread = threading.Thread(
-            target=monitor_process_output, 
-            args=(process,),
-            daemon=True
-        )
-        process_thread.start()
+        # Start log tailer thread
+        start_tailing()
         
     except Exception as e:
         socketio.emit('log_update', {'log': f'[SYSTEM] Failed to spawn process: {e}'})
-        is_running = False
-        process = None
 
 @socketio.on('stop_daq')
 def handle_stop():
-    """WebSocket command trigger to terminate running subprocess."""
-    global process, is_running
-    if not is_running or process is None:
+    """Stops the detached process by its recorded PID."""
+    pid, _ = get_running_process()
+    if pid is None:
         emit('log_update', {'log': '[SYSTEM] Warning: Ingestion process is not running.'})
         return
         
-    socketio.emit('log_update', {'log': '[SYSTEM] Sending termination signal to process...'})
-    try:
-        process.terminate() # Graceful shutdown (allows queue flush)
-    except Exception as e:
-        socketio.emit('log_update', {'log': f'[SYSTEM] Error terminating process: {e}'})
+    socketio.emit('log_update', {'log': f'[SYSTEM] Terminating process (PID: {pid})...'})
+    
+    # 1. Stop log tailing thread
+    global stop_tail_event
+    stop_tail_event.set()
+    
+    # 2. Terminate background process
+    terminate_pid(pid)
+    
+    # 3. Clean up metadata files
+    if os.path.exists(PID_PATH):
+        os.remove(PID_PATH)
+    if os.path.exists(MODE_PATH):
+        os.remove(MODE_PATH)
+        
+    socketio.emit('status_change', {'is_running': False})
+    socketio.emit('log_update', {'log': '[SYSTEM] Ingestion process terminated.'})
+
+# Initial recovery check on Web GUI startup
+pid, mode = get_running_process()
+if pid is not None:
+    print(f"[SYSTEM] Detected active background process running (PID: {pid}). Re-attaching...")
+    start_tailing()
 
 if __name__ == '__main__':
-    # Served on Port 8081 for distributed scaling compatibility
+    # Served on Port 8081
     socketio.run(app, host='0.0.0.0', port=8081, debug=True)
