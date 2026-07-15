@@ -8,6 +8,7 @@ the Flask/SocketIO process — no Docker containers required.
 Supports both mockup (synthetic waveform) and real hardware modes.
 """
 
+import logging
 import math
 import os
 import queue
@@ -21,6 +22,8 @@ import psycopg2
 import psycopg2.extras
 
 import web_gui.db as db_module
+
+_log = logging.getLogger(__name__)
 
 # ── Ensure project root is on sys.path so Automation.BDaq can be found ────────
 # The old stream_to_db.py did this explicitly; we must do the same here
@@ -40,6 +43,16 @@ try:
 except Exception as _exc:
     BDAQ_AVAILABLE = False
     BDAQ_IMPORT_ERROR = str(_exc)
+
+# ── Log SDK status at startup (visible in terminal) ──────────────────────────
+if BDAQ_AVAILABLE:
+    _log.info("Advantech BDaq SDK loaded successfully")
+else:
+    _log.warning(
+        "Advantech BDaq SDK NOT available: %s  |  "
+        "project_root=%s  |  sys.path=%s",
+        BDAQ_IMPORT_ERROR, _PROJECT_ROOT, sys.path,
+    )
 
 # ── Shared State ──────────────────────────────────────────────────────────────
 
