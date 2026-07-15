@@ -3,6 +3,7 @@ __pycache__/
 .DS_Store
 .portal.pid
 .daq.pid
+.plotter.pid
 USB4716/.daq_process.pid
 USB4716/.daq_process.mode
 USB4716/daq_pipeline.log

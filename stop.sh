@@ -4,6 +4,7 @@
 
 PORTAL_PID_FILE=".portal.pid"
 DAQ_PID_FILE=".daq.pid"
+PLOTTER_PID_FILE=".plotter.pid"
 
 echo "=========================================================="
 echo "         MDDP Ingestion Control Suite Shutdown"
@@ -35,6 +36,20 @@ if [ -f "$DAQ_PID_FILE" ]; then
     rm "$DAQ_PID_FILE"
 else
     echo "[SYSTEM] DAQ Control Panel is already stopped."
+fi
+
+# 3. Stop Telemetry Visualizer
+if [ -f "$PLOTTER_PID_FILE" ]; then
+    PID=$(cat "$PLOTTER_PID_FILE")
+    if ps -p "$PID" >/dev/null 2>&1; then
+        echo "[SYSTEM] Stopping Telemetry Visualizer (PID: $PID)..."
+        kill "$PID" 2>/dev/null
+    else
+        echo "[SYSTEM] Telemetry Visualizer process not found."
+    fi
+    rm "$PLOTTER_PID_FILE"
+else
+    echo "[SYSTEM] Telemetry Visualizer is already stopped."
 fi
 
 echo "[SYSTEM] Shutdown sequence completed."

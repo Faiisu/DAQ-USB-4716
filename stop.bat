@@ -13,5 +13,8 @@ taskkill /fi "WINDOWTITLE eq MDDP_PORTAL_HUB*" /t /f >nul 2>&1
 echo [SYSTEM] Stopping DAQ Control Panel...
 taskkill /fi "WINDOWTITLE eq MDDP_DAQ_PANEL*" /t /f >nul 2>&1
 
+echo [SYSTEM] Stopping Telemetry Visualizer...
+taskkill /fi "WINDOWTITLE eq MDDP_PLOTTER_SERVICE*" /t /f >nul 2>&1
+
 echo [SYSTEM] All background processes stopped.
 echo ==========================================================

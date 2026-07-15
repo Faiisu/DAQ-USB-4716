@@ -4,9 +4,10 @@
 
 PORTAL_PID_FILE=".portal.pid"
 DAQ_PID_FILE=".daq.pid"
+PLOTTER_PID_FILE=".plotter.pid"
 
 # Safeguard check to prevent starting duplicate instances
-if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ]; then
+if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ] || [ -f "$PLOTTER_PID_FILE" ]; then
     echo "[SYSTEM] Warning: PID files detected. Services may already be running."
     echo "[SYSTEM] Please run ./stop.sh before starting again."
     exit 1
@@ -34,13 +35,18 @@ echo "=========================================================="
 
 # 1. Start Main Portal Gateway (Port 8080)
 echo "[SYSTEM] Starting Ingestion Portal on http://localhost:8080..."
-$PYTHON_BIN -m http.server 8080 --directory web >/dev/null 2>&1 &
+$PYTHON_BIN -m http.server 8080 --directory portal >/dev/null 2>&1 &
 echo $! > "$PORTAL_PID_FILE"
 
 # 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo "[SYSTEM] Starting DAQ Control Panel on http://localhost:8081..."
 $PYTHON_BIN USB4716/web_gui.py >/dev/null 2>&1 &
 echo $! > "$DAQ_PID_FILE"
+
+# 3. Start Telemetry Plotter Service (Port 8084)
+echo "[SYSTEM] Starting Telemetry Visualizer on http://localhost:8084..."
+$PYTHON_BIN plot_service/app.py >/dev/null 2>&1 &
+echo $! > "$PLOTTER_PID_FILE"
 
 echo "[SYSTEM] Services launched in background."
 echo "=========================================================="

@@ -1,0 +1,121 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MDDP Ingestion Telemetry Visualizer</title>
+    <!-- Outfit Font & Monospace -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/style.css">
+    <!-- Plotly.js CDN -->
+    <script src="https://cdn.plot.ly/plotly-2.32.0.min.js"></script>
+</head>
+<body>
+    <div class="dashboard-container">
+        <!-- Header -->
+        <header class="main-header">
+            <div class="brand">
+                <a href="http://localhost:8080" class="back-link">
+                    <svg viewBox="0 0 24 24" width="20" height="20" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <line x1="19" y1="12" x2="5" y2="12"></line>
+                        <polyline points="12 19 5 12 12 5"></polyline>
+                    </svg>
+                </a>
+                <div class="brand-text">
+                    <h1>MDDP TELEMETRY VISUALIZER</h1>
+                    <span class="sub-text">REAL-TIME TIME-SERIES DATA VIEWER</span>
+                </div>
+            </div>
+            <div class="header-status">
+                <div class="status-indicator">
+                    <span class="pulse-dot green" id="status-dot"></span>
+                    <span class="status-label" id="status-text">MONITOR_ACTIVE</span>
+                </div>
+                <div class="clock-display" id="realtime-clock">--:--:-- UTC</div>
+            </div>
+        </header>
+
+        <!-- Main Workspace Split -->
+        <div class="visualizer-layout">
+            <!-- Left Side: Controls Panel -->
+            <section class="control-panel">
+                <div class="panel-header">
+                    <h2>CHART CONTROLS</h2>
+                    <span class="panel-subtitle">Filter channel ranges and Y-limits</span>
+                </div>
+
+                <div class="control-group">
+                    <label for="channel-select">DATA CHANNEL</label>
+                    <select id="channel-select" class="form-input">
+                        <option value="0">Channel 0 (DAQ)</option>
+                    </select>
+                </div>
+
+                <div class="control-group">
+                    <label for="time-range-select">TIME RANGE WINDOW</label>
+                    <select id="time-range-select" class="form-input">
+                        <option value="30">Last 30 Seconds</option>
+                        <option value="60" selected>Last 1 Minute</option>
+                        <option value="300">Last 5 Minutes</option>
+                        <option value="900">Last 15 Minutes</option>
+                        <option value="custom">Custom Date-Time Range</option>
+                    </select>
+                </div>
+
+                <!-- Custom Datetime inputs (visible when custom time range is selected) -->
+                <div id="custom-time-inputs" class="custom-time-inputs hidden">
+                    <div class="control-group">
+                        <label for="start-datetime">START DATETIME</label>
+                        <input type="datetime-local" id="start-datetime" class="form-input">
+                    </div>
+                    <div class="control-group">
+                        <label for="end-datetime">END DATETIME</label>
+                        <input type="datetime-local" id="end-datetime" class="form-input">
+                    </div>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <div class="panel-header">
+                    <h2>AXIS SCALING</h2>
+                    <span class="panel-subtitle">Override automatic Y-limits</span>
+                </div>
+
+                <div class="form-row">
+                    <div class="control-group">
+                        <label for="y-min-input">Y-MIN (V)</label>
+                        <input type="number" id="y-min-input" class="form-input" placeholder="Auto" step="any">
+                    </div>
+                    <div class="control-group">
+                        <label for="y-max-input">Y-MAX (V)</label>
+                        <input type="number" id="y-max-input" class="form-input" placeholder="Auto" step="any">
+                    </div>
+                </div>
+
+                <div class="control-group checkbox-group">
+                    <input type="checkbox" id="auto-refresh" checked>
+                    <label for="auto-refresh">Auto-Refresh Plot (1s interval)</label>
+                </div>
+
+                <button id="refresh-btn" class="action-btn">
+                    <span>RE-QUERY DATABASE</span>
+                </button>
+            </section>
+
+            <!-- Right Side: The Interactive Plot Container -->
+            <section class="chart-panel">
+                <div id="plotly-chart" class="plotly-chart-container"></div>
+                <div class="chart-instructions">
+                    <span class="instruction-title">CHART MANUAL:</span>
+                    <p>• <strong>Hover</strong> over lines to view precise values and timestamps (with millisecond resolution).</p>
+                    <p>• Use the toolbar at the top right of the chart to select <strong>Zoom</strong> or <strong>Pan</strong> (hand icon) to slide the timeline.</p>
+                    <p>• Double-click anywhere on the chart area to reset zoom and Y-axis limits.</p>
+                </div>
+            </section>
+        </div>
+    </div>
+</body>
+<script src="/static/app.js"></script>
+</html>
