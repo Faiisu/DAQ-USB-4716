@@ -13,6 +13,7 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Initial loads
     fetchDefaultDsn();
+    resolveBackLink();
 
     // Modal UI hooks
     document.getElementById('open-modal-btn').addEventListener('click', openModal);
@@ -629,6 +630,18 @@ function togglePlotPause(plotId, btn) {
         plot.intervalId = setInterval(() => queryPlotData(plot), 1000);
         queryPlotData(plot); // Fetch immediately
         showToast("Updates resumed.");
+    }
+}
+
+// Dynamically replace 'localhost' in back link with the accessing IP/hostname
+function resolveBackLink() {
+    const backLink = document.querySelector('.back-link');
+    if (backLink) {
+        const hostname = window.location.hostname;
+        const originalHref = backLink.getAttribute('href');
+        if (originalHref && originalHref.includes('localhost')) {
+            backLink.setAttribute('href', originalHref.replace('localhost', hostname));
+        }
     }
 }
 

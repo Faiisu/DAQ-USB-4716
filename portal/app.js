@@ -13,12 +13,27 @@ document.addEventListener('DOMContentLoaded', () => {
     updateUptime();
     setInterval(updateUptime, 1000);
 
+    // Resolve localhost hostnames dynamically
+    resolveHostnames();
+
     // Simulate occasional background system activity logs
     setInterval(simulateSystemLog, 15000);
 
     // Add interceptors to portal links to display log messages
     setupPortalLinks();
 });
+
+// Dynamically replace 'localhost' in link URLs with the accessing IP/hostname
+function resolveHostnames() {
+    const hostname = window.location.hostname;
+    const links = document.querySelectorAll('.module-portal-link');
+    links.forEach(link => {
+        const originalHref = link.getAttribute('href');
+        if (originalHref && originalHref.includes('localhost')) {
+            link.setAttribute('href', originalHref.replace('localhost', hostname));
+        }
+    });
+}
 
 // Update the real-time clock in the header (UTC format)
 function updateClock() {
