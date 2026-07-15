@@ -51,7 +51,7 @@ function setupPortalLinks() {
     const links = document.querySelectorAll('.module-portal-link');
     links.forEach(link => {
         link.addEventListener('click', (e) => {
-            const card = link.querySelector('.module-card');
+            const card = link.querySelector('.module-row');
             const title = card.querySelector('h3').textContent;
             const badge = card.querySelector('.status-badge').textContent.trim();
             

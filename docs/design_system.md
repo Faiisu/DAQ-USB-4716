@@ -1,4 +1,4 @@
-# MDDP Data Ingestion Design System: Cyber-Industrial / Terminal Mode
+# MDDP Data Ingestion Design System: Dark-Grey Horizontal List Rows
 
 This document defines the user interface design standards for the MDDP Data Ingestion Control Center and its distributed service panels. All sub-modules, consoles, and portals must adhere to these design patterns to ensure visual consistency and a cohesive user experience.
 
@@ -6,12 +6,12 @@ This document defines the user interface design standards for the MDDP Data Inge
 
 ## 1. Visual & Aesthetic Philosophy
 
-The MDDP interface prioritizes **high readability, industrial durability, and professional telemetry monitoring**. It is styled to resemble engineering dashboards (e.g., Grafana, CNC terminals, or flight control systems).
+The MDDP interface prioritizes **high readability, structured clarity, and professional horizontal data scanning**. It is styled to resemble modern cloud service management dashboards (e.g., AWS console, Vercel deployments, or Stripe logs).
 
-* **Theme**: Dark Mode (Dark Charcoal, Cybernetic Cyan, and Safety Amber).
-* **Grid**: Highly structured panel grid layout with sharp borders.
-* **Corners**: Minimal corner rounding (`4px` to `6px`) to convey structural machinery.
-* **Animations**: Instant state changes with very brief, high-contrast hover indicators.
+* **Theme**: Dark-Grey Mode (Slate/Zinc Dark-Grey base, Sky Blue accents, distinct boundaries).
+* **Layout**: Horizontal List-Rows instead of grid cards. This facilitates easy horizontal scanning of device information, ports, protocols, and actions.
+* **Corners**: Minimal corner rounding (`6px`) to convey structural robustness.
+* **Animations**: Fast, responsive transitions (e.g., border highlights, slight horizontal shifts on hover).
 
 ---
 
@@ -21,15 +21,16 @@ All UI elements must construct their styles using the following curated color to
 
 | Token Name | Hex Value | UI Role / Usage |
 |---|---|---|
-| `--bg-main` | `#0c0d12` | Overall page background (dark navy charcoal) |
-| `--bg-card` | `#13151a` | Card panel container background (deep flat charcoal) |
-| `--border-light` | `#1e222b` | Standard divider and card border |
-| `--border-accent` | `#2d3443` | Input border and card hover border |
-| `--text-primary` | `#f1f5f9` | Primary text and major headings (slate-100) |
-| `--text-secondary` | `#94a3b8` | Secondary descriptors and body text (slate-400) |
-| `--text-muted` | `#475569` | Placeholders, timestamps, and metadata (slate-600) |
-| `--accent-cyan` | `#06b6d4` | Primary telemetry blue/cyan for buttons, active links, and focus |
-| `--accent-cyan-bg` | `rgba(6, 182, 212, 0.1)` | Translucent cyan backing for status and highlights |
+| `--bg-main` | `#121316` | Overall page background (cool dark-grey / slate-950) |
+| `--bg-card` | `#1c1e22` | Row and panel container background (solid dark-grey) |
+| `--bg-nested` | `#0f1013` | Deep terminal console and table header backing |
+| `--border-light` | `#2b2f38` | Standard divider and row border |
+| `--border-accent` | `#3f4756` | Active input border and row hover border |
+| `--text-primary` | `#f8fafc` | Primary text and major headings (slate-50) |
+| `--text-secondary` | `#cbd5e1` | Secondary descriptors and body text (slate-300) |
+| `--text-muted` | `#64748b` | Placeholders, timestamps, and metadata (slate-500) |
+| `--accent-sky` | `#0ea5e9` | Primary brand blue/sky for links, buttons, and hover boundaries |
+| `--accent-sky-bg` | `rgba(14, 165, 233, 0.08)` | Translucent sky backing for icons and highlights |
 | `--accent-amber` | `#f59e0b` | Safety alert yellow/amber for warnings and standby states |
 | `--accent-emerald` | `#10b981` | Success emerald for online systems and metrics |
 
@@ -37,31 +38,32 @@ All UI elements must construct their styles using the following curated color to
 
 ## 3. Typography & Scale
 
-The design system uses a combination of **Outfit** for headings and **monospace** (Consolas, SFMono, or system fallbacks) for parameters and logs.
+The design system uses a combination of **Outfit** for headings and **monospace** (Consolas, JetBrains Mono, or system fallbacks) for parameters, ports, and logs.
 
-* **Main Titles (`h1`)**: `22px / 1.375rem`, Semi-Bold (`600`), Letter-spacing `-0.01em`
-* **Card Titles (`h3`)**: `16px / 1rem`, Semi-Bold (`600`), Upper-case Option
-* **Body Text**: `13px / 0.8125rem`, Regular (`400`), Line-height `1.5`
-* **Telemetry/Labels**: `12px / 0.75rem`, Monospace, Medium (`500`), Letter-spacing `0.08em`
+* **Main Titles (`h1`)**: `20px / 1.25rem`, Semi-Bold (`600`), Letter-spacing `-0.01em`
+* **Row Titles (`h3`)**: `15px / 0.9375rem`, Semi-Bold (`600`)
+* **Body Text / Descriptors**: `13px / 0.8125rem`, Regular (`400`), Line-height `1.5`
+* **Telemetry/Labels**: `12px / 0.75rem`, Monospace, Medium (`500`), Letter-spacing `0.05em`
 
 ---
 
 ## 4. Components
 
-### A. Terminal Portal Card
-Each control module is presented as a Card Component acting as a gateway (portal) to its respective port:
-* **Layout**: Padding of `1.75rem` (`28px`), vertical flex gap.
+### A. Horizontal Portal Row
+Each control module is presented as a horizontal row component acting as a gateway (portal) to its respective port:
+* **Layout**: `display: flex; align-items: center; justify-content: space-between; gap: 1.5rem;`
+* **Padding**: `1.25rem 2rem` (`20px` vertical, `32px` horizontal).
 * **Border**: `1px solid var(--border-light)`.
 * **Hover Interaction**:
-  * Border transitions to `var(--accent-cyan)`.
-  * Text color of links changes to white.
-  * Very subtle inner shadow: `inset 0 0 10px rgba(6, 182, 212, 0.05)`.
+  * Row border transitions to `var(--accent-sky)`.
+  * Action button background transitions to `var(--accent-sky)`.
+  * The link arrow icon shifts slightly top-right (`transform: translate(2px, -2px)`).
 
 ### B. Segmented Status Badges
 Indicates system statuses clearly using telemetry color rules:
 * **Active/Online**: Solid border `#10b981`, text `#10b981`, translucent green background.
 * **Standby/Idle**: Solid border `#f59e0b`, text `#f59e0b`, translucent amber background.
-* **Offline/Unreachable**: Solid border `#475569`, text `#94a3b8`, translucent gray background.
+* **Offline/Unreachable**: Solid border `#64748b`, text `#cbd5e1`, translucent gray background.
 
 ---
 
