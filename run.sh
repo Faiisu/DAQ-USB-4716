@@ -2,20 +2,15 @@
 # See: docs/architecture/context.md
 # English comments only
 
-# Set trap to kill background processes on Ctrl+C (SIGINT / SIGTERM)
-trap cleanup EXIT INT TERM
+PORTAL_PID_FILE=".portal.pid"
+DAQ_PID_FILE=".daq.pid"
 
-cleanup() {
-    echo ""
-    echo "[SYSTEM] Shutting down background processes..."
-    if [ ! -z "$PORTAL_PID" ]; then
-        kill "$PORTAL_PID" 2>/dev/null
-    fi
-    if [ ! -z "$DAQ_PID" ]; then
-        kill "$DAQ_PID" 2>/dev/null
-    fi
-    echo "[SYSTEM] All services stopped."
-}
+# Safeguard check to prevent starting duplicate instances
+if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ]; then
+    echo "[SYSTEM] Warning: PID files detected. Services may already be running."
+    echo "[SYSTEM] Please run ./stop.sh before starting again."
+    exit 1
+fi
 
 echo "=========================================================="
 echo "         MDDP Ingestion Control Suite Startup"
@@ -24,15 +19,12 @@ echo "=========================================================="
 # 1. Start Main Portal Gateway (Port 8080)
 echo "[SYSTEM] Starting Ingestion Portal on http://localhost:8080..."
 python3 -m http.server 8080 --directory web >/dev/null 2>&1 &
-PORTAL_PID=$!
+echo $! > "$PORTAL_PID_FILE"
 
 # 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo "[SYSTEM] Starting DAQ Control Panel on http://localhost:8081..."
-python3 USB4716/web_gui.py &
-DAQ_PID=$!
+python3 USB4716/web_gui.py >/dev/null 2>&1 &
+echo $! > "$DAQ_PID_FILE"
 
-echo "[SYSTEM] Services initialized. Press Ctrl+C to terminate."
+echo "[SYSTEM] Services launched in background."
 echo "=========================================================="
-
-# Wait for background processes to keep script running
-wait $DAQ_PID $PORTAL_PID
