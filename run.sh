@@ -12,18 +12,34 @@ if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ]; then
     exit 1
 fi
 
+# Resolve Python binary dynamically (prefer virtualenv python over global python)
+PYTHON_BIN=""
+if [ -f "venv/bin/python" ]; then
+    # Unix virtualenv python path
+    PYTHON_BIN="venv/bin/python"
+elif [ -f "venv/Scripts/python" ]; then
+    # Windows Git Bash virtualenv python path
+    PYTHON_BIN="venv/Scripts/python"
+elif command -v python3 >/dev/null 2>&1; then
+    PYTHON_BIN="python3"
+else
+    PYTHON_BIN="python"
+fi
+
+echo "[SYSTEM] Using Python interpreter: $PYTHON_BIN"
+
 echo "=========================================================="
 echo "         MDDP Ingestion Control Suite Startup"
 echo "=========================================================="
 
 # 1. Start Main Portal Gateway (Port 8080)
 echo "[SYSTEM] Starting Ingestion Portal on http://localhost:8080..."
-python3 -m http.server 8080 --directory web >/dev/null 2>&1 &
+$PYTHON_BIN -m http.server 8080 --directory web >/dev/null 2>&1 &
 echo $! > "$PORTAL_PID_FILE"
 
 # 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo "[SYSTEM] Starting DAQ Control Panel on http://localhost:8081..."
-python3 USB4716/web_gui.py >/dev/null 2>&1 &
+$PYTHON_BIN USB4716/web_gui.py >/dev/null 2>&1 &
 echo $! > "$DAQ_PID_FILE"
 
 echo "[SYSTEM] Services launched in background."
