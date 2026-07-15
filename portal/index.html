@@ -42,10 +42,6 @@
             </div>
             <div class="system-stats">
                 <div class="stat-card">
-                    <span class="stat-title">DATABASE DSN</span>
-                    <span class="stat-value text-blue" id="db-status">TimescaleDB</span>
-                </div>
-                <div class="stat-card">
                     <span class="stat-title">SYS RUNTIME</span>
                     <span class="stat-value monospace" id="uptime-counter">00:00:00</span>
                 </div>
@@ -78,17 +74,6 @@
                     
                     <div class="row-desc">
                         <p>High-speed analog-to-digital signal streaming pipeline. Controls hardware clock rates, buffer allocation, and TimescaleDB synchronization.</p>
-                    </div>
-
-                    <div class="row-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Protocol</span>
-                            <span class="meta-val monospace">WS / TCP</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Telemetry</span>
-                            <span class="meta-val monospace">1000 Hz / CH0</span>
-                        </div>
                     </div>
 
                     <div class="action-btn">
@@ -124,17 +109,6 @@
                         <p>Fluid dispenser module controller. Manages pressure configurations, digital calibration levels, and syringe fluid volumes.</p>
                     </div>
 
-                    <div class="row-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Protocol</span>
-                            <span class="meta-val monospace">HTTP / REST</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Telemetry</span>
-                            <span class="meta-val monospace">STANDBY / 120kPa</span>
-                        </div>
-                    </div>
-
                     <div class="action-btn">
                         <span>LAUNCH PANEL</span>
                         <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
@@ -166,17 +140,6 @@
 
                     <div class="row-desc">
                         <p>High-precision dual-nozzle dispenser robot panel. Handles automated micro-dispensation profiles, coordinates, and paths.</p>
-                    </div>
-
-                    <div class="row-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Protocol</span>
-                            <span class="meta-val monospace">WS / TCP</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Telemetry</span>
-                            <span class="meta-val monospace">OFFLINE</span>
-                        </div>
                     </div>
 
                     <div class="action-btn">
@@ -211,17 +174,6 @@
 
                     <div class="row-desc">
                         <p>Real-time analytics and time-series plotting dashboard. Queries database metrics and presents interactive panning/sliding charts.</p>
-                    </div>
-
-                    <div class="row-meta">
-                        <div class="meta-item">
-                            <span class="meta-label">Engine</span>
-                            <span class="meta-val">Plotly.js / Flask</span>
-                        </div>
-                        <div class="meta-item">
-                            <span class="meta-label">Data Targets</span>
-                            <span class="meta-val">daq_samples (Timescale)</span>
-                        </div>
                     </div>
 
                     <div class="action-btn">
