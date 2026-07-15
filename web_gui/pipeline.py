@@ -322,6 +322,8 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
 
                 spc = returned_count // n_ch
                 rows = []
+                scaling_enabled = cfg.get("scaling_enabled", False)
+                scaling_configs = cfg.get("scaling", [])
                 for s in range(spc):
                     offset_ns    = (spc - 1 - s) * dt_ns
                     sample_ts_ns = batch_wall_ts_ns - offset_ns
@@ -330,6 +332,15 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
                     )
                     for ch in range(n_ch):
                         value = raw_data[s * n_ch + ch]
+                        if scaling_enabled and ch < len(scaling_configs):
+                            sc = scaling_configs[ch]
+                            low_v = sc.get("low_v", 0.0)
+                            high_v = sc.get("high_v", 5.0)
+                            low_val = sc.get("low_val", 0.0)
+                            high_val = sc.get("high_val", 5.0)
+                            denom = high_v - low_v
+                            if denom != 0:
+                                value = ((value - low_v) / denom) * (high_val - low_val) + low_val
                         rows.append((sample_ts, start_ch + ch, value))
 
                 try:

@@ -26,6 +26,13 @@ _cfg = {
         {"amp": 1.5,  "freq": 2.0,   "dc": 3.0},
     ],
     "noise_std": 0.02,
+    "scaling_enabled": False,
+    "scaling": [
+        {"low_v": 0.0, "high_v": 5.0, "low_val": 0.0, "high_val": 5.0},
+        {"low_v": 0.0, "high_v": 5.0, "low_val": 0.0, "high_val": 5.0},
+        {"low_v": 0.0, "high_v": 5.0, "low_val": 0.0, "high_val": 5.0},
+        {"low_v": 0.0, "high_v": 5.0, "low_val": 0.0, "high_val": 5.0},
+    ],
 }
 
 # Try to seed from config.py
@@ -42,6 +49,8 @@ try:
     _cfg["queue_maxsize"]     = _c.QUEUE_MAXSIZE
     _cfg["db_page_size"]      = _c.DB_PAGE_SIZE
     _cfg["stats_interval"]    = _c.STATS_INTERVAL_SEC
+    _cfg["scaling_enabled"]   = getattr(_c, "SCALING_ENABLED", False)
+    _cfg["scaling"]           = getattr(_c, "SCALING", [])
 except Exception:
     pass
 
@@ -87,6 +96,10 @@ DB_PAGE_SIZE         = {int(cfg["db_page_size"])}
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 STATS_INTERVAL_SEC   = {int(cfg["stats_interval"])}
+
+# ─── Linear Scaling ──────────────────────────────────────────────────────────
+SCALING_ENABLED      = {repr(cfg["scaling_enabled"])}
+SCALING              = {repr(cfg["scaling"])}
 """
     try:
         with open(config_path, "w", encoding="utf-8") as f:

@@ -81,6 +81,16 @@ async function saveDbConfig() {
 }
 
 async function saveDaqConfig() {
+  const scaling = [];
+  document.querySelectorAll('.scaling-row').forEach(row => {
+    scaling.push({
+      low_v:    parseFloat(row.querySelector('.sc-low-v').value)    ?? 0.0,
+      high_v:   parseFloat(row.querySelector('.sc-high-v').value)   ?? 5.0,
+      low_val:  parseFloat(row.querySelector('.sc-low-val').value)  ?? 0.0,
+      high_val: parseFloat(row.querySelector('.sc-high-val').value) ?? 5.0,
+    });
+  });
+
   const patch = {
     device_description: ui.getVal('inp-device'),
     profile_path:       ui.getVal('inp-profile'),
@@ -91,6 +101,8 @@ async function saveDaqConfig() {
     section_count:      parseInt(ui.getVal('inp-sec-count')),
     queue_maxsize:      parseInt(ui.getVal('inp-queue-max')),
     stats_interval:     parseInt(ui.getVal('inp-stats-int')),
+    scaling_enabled:    document.getElementById('inp-scale-enabled').checked,
+    scaling:            scaling,
   };
   await patchConfig(patch, 'daq-save-result');
   const fullCfg = { ...ui.getCurrentCfg(), ...patch };
@@ -100,6 +112,7 @@ async function saveDaqConfig() {
   ui.setText('info-clock',    `${patch.clock_rate.toLocaleString()} Hz`);
   ui.setText('info-seclen',   `${patch.section_length} samples/ch`);
   ui.renderChannelPills(fullCfg);
+  ui.renderScaling(fullCfg);
 }
 
 async function saveMockupConfig() {
@@ -152,6 +165,7 @@ window.saveMockupConfig = saveMockupConfig;
 window.testDbConn = testDbConn;
 window.onDbTargetChange = onDbTargetChange;
 window.clearLog = ui.clearLog;
+window.toggleScalingContainer = ui.toggleScalingContainer;
 
 // ── Bind Chart actions to window scope ──
 window.togglePlotMode = chart.togglePlotMode;
@@ -175,6 +189,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   // Re-render waveform rows when channel count changes
   document.getElementById('inp-ch-count')?.addEventListener('change', () => {
     const n   = parseInt(ui.getVal('inp-ch-count')) || 4;
+    
+    // Waveforms
     const wf  = [];
     document.querySelectorAll('.waveform-row').forEach(row => {
       wf.push({
@@ -189,6 +205,24 @@ document.addEventListener('DOMContentLoaded', async () => {
       channel_count: n,
       start_channel: parseInt(ui.getVal('inp-start-ch')) || 0,
       waveforms: wf,
+    });
+
+    // Scaling
+    const sc  = [];
+    document.querySelectorAll('.scaling-row').forEach(row => {
+      sc.push({
+        low_v:    parseFloat(row.querySelector('.sc-low-v')?.value)    ?? 0.0,
+        high_v:   parseFloat(row.querySelector('.sc-high-v')?.value)   ?? 5.0,
+        low_val:  parseFloat(row.querySelector('.sc-low-val')?.value)  ?? 0.0,
+        high_val: parseFloat(row.querySelector('.sc-high-val')?.value) ?? 5.0,
+      });
+    });
+    while (sc.length < n) sc.push({ low_v: 0.0, high_v: 5.0, low_val: 0.0, high_val: 5.0 });
+    ui.renderScaling({
+      ...ui.getCurrentCfg(),
+      channel_count: n,
+      start_channel: parseInt(ui.getVal('inp-start-ch')) || 0,
+      scaling: sc,
     });
   });
 

@@ -143,6 +143,14 @@ export function populateConfig(cfg) {
   setVal('inp-noise', cfg.noise_std);
   renderWaveforms(cfg);
 
+  // Scaling
+  const scaleEnabledEl = document.getElementById('inp-scale-enabled');
+  if (scaleEnabledEl) {
+    scaleEnabledEl.checked = !!cfg.scaling_enabled;
+  }
+  renderScaling(cfg);
+  toggleScalingContainer();
+
   // Dashboard info
   setText('info-dsn',      cfg.mockup_db_dsn);
   setText('info-channels', `CH${cfg.start_channel} – CH${cfg.start_channel + cfg.channel_count - 1} (${cfg.channel_count} ch)`);
@@ -242,6 +250,80 @@ export function renderWaveforms(cfg) {
       </div>
     `;
     container.appendChild(row);
+  }
+}
+
+export function renderScaling(cfg) {
+  const container = document.getElementById('scaling-list');
+  if (!container) return;
+
+  const existing = [];
+  container.querySelectorAll('.scaling-row').forEach(row => {
+    existing.push({
+      low_v:    parseFloat(row.querySelector('.sc-low-v')?.value)    ?? null,
+      high_v:   parseFloat(row.querySelector('.sc-high-v')?.value)   ?? null,
+      low_val:  parseFloat(row.querySelector('.sc-low-val')?.value)  ?? null,
+      high_val: parseFloat(row.querySelector('.sc-high-val')?.value) ?? null,
+    });
+  });
+
+  const n  = cfg.channel_count || 1;
+  const sc = cfg.scaling || [];
+
+  container.innerHTML = '';
+  for (let i = 0; i < n; i++) {
+    const saved = sc[i]      || { low_v: 0.0, high_v: 5.0, low_val: 0.0, high_val: 5.0 };
+    const edit  = existing[i] || {};
+    const w = {
+      low_v:    edit.low_v    ?? saved.low_v,
+      high_v:   edit.high_v   ?? saved.high_v,
+      low_val:  edit.low_val  ?? saved.low_val,
+      high_val: edit.high_val ?? saved.high_val,
+    };
+    const color = COLOURS[i % COLOURS.length];
+    const ch    = (cfg.start_channel || 0) + i;
+
+    const row = document.createElement('div');
+    row.className = 'scaling-row';
+    row.innerHTML = `
+      <div class="waveform-ch">
+        <div class="waveform-ch-label" style="color:${color}; text-shadow:0 0 10px ${color}80;">CH ${ch}</div>
+        <div class="waveform-ch-sub">y = mx + c</div>
+      </div>
+      <div class="form-group">
+        <label>Low V</label>
+        <input class="form-control sc-low-v" type="number" step="0.01" value="${w.low_v}" style="border-color:${color}30"/>
+      </div>
+      <div class="form-group">
+        <label>High V</label>
+        <input class="form-control sc-high-v" type="number" step="0.01" value="${w.high_v}" style="border-color:${color}30"/>
+      </div>
+      <div class="form-group">
+        <label>Low Value</label>
+        <input class="form-control sc-low-val" type="number" step="0.01" value="${w.low_val}" style="border-color:${color}30"/>
+      </div>
+      <div class="form-group">
+        <label>High Value</label>
+        <input class="form-control sc-high-val" type="number" step="0.01" value="${w.high_val}" style="border-color:${color}30"/>
+      </div>
+    `;
+    container.appendChild(row);
+  }
+}
+
+export function toggleScalingContainer() {
+  const enabled = document.getElementById('inp-scale-enabled')?.checked;
+  const container = document.getElementById('scaling-list');
+  if (container) {
+    if (enabled) {
+      container.classList.remove('disabled');
+      container.style.opacity = '1.0';
+      container.style.pointerEvents = 'auto';
+    } else {
+      container.classList.add('disabled');
+      container.style.opacity = '0.4';
+      container.style.pointerEvents = 'none';
+    }
   }
 }
 

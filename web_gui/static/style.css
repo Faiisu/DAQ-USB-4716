@@ -1255,3 +1255,17 @@ body::before {
   color: var(--green);
   border-color: rgba(16, 185, 129, 0.3);
 }
+
+.scaling-row {
+  background: rgba(255,255,255,0.02);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  padding: 14px 16px;
+  display: grid;
+  grid-template-columns: 80px 1fr 1fr 1fr 1fr;
+  gap: 14px;
+  align-items: end;
+  transition: border-color var(--t-fast);
+}
+.scaling-row:hover { border-color: var(--border-b); }
+
