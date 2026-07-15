@@ -4,10 +4,10 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>MDDP Data Ingestion Control Center</title>
-    <!-- Outfit Font from Google Fonts -->
+    <!-- Outfit Font & Monospace -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="style.css">
 </head>
 <body>
@@ -16,19 +16,19 @@
         <header class="main-header">
             <div class="brand">
                 <div class="logo-icon">
-                    <svg viewBox="0 0 24 24" width="24" height="24">
-                        <path fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
+                    <svg viewBox="0 0 24 24" width="20" height="20">
+                        <path fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round" d="M12 2L2 7l10 5 10-5-10-5zM2 17l10 5 10-5M2 12l10 5 10-5" />
                     </svg>
                 </div>
                 <div class="brand-text">
-                    <h1>MDDP Data Ingestion Control Center</h1>
-                    <span class="sub-text">Unified Hardware Automation Portal</span>
+                    <h1>MDDP DATA INGESTION CONTROL CENTER</h1>
+                    <span class="sub-text">DISTRIBUTED HARDWARE GATEWAY SYSTEM</span>
                 </div>
             </div>
             <div class="header-status">
                 <div class="status-indicator">
                     <span class="pulse-dot green"></span>
-                    <span class="status-label">SYSTEM ONLINE</span>
+                    <span class="status-label">SYS_ONLINE</span>
                 </div>
                 <div class="clock-display" id="realtime-clock">--:--:-- UTC</div>
             </div>
@@ -37,21 +37,21 @@
         <!-- System Overview Section -->
         <section class="system-overview">
             <div class="overview-info">
-                <h2>Portal Gateway</h2>
-                <p>Launch individual device control panels hosted on dedicated ports. This distributed approach facilitates high availability and independent scaling of process modules.</p>
+                <h2>PORTAL OVERVIEW</h2>
+                <p>Gateway node routing requests to isolated telemetry services. Devices are partitioned onto dedicated network ports to scale resource allocation and insulate control threads.</p>
             </div>
             <div class="system-stats">
                 <div class="stat-card">
                     <span class="stat-title">DATABASE DSN</span>
-                    <span class="stat-value text-blue" id="db-status">TimescaleDB</span>
+                    <span class="stat-value text-cyan" id="db-status">TimescaleDB</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-title">PORTAL RUNTIME</span>
-                    <span class="stat-value" id="uptime-counter">00:00:00</span>
+                    <span class="stat-title">SYS RUNTIME</span>
+                    <span class="stat-value monospace" id="uptime-counter">00:00:00</span>
                 </div>
                 <div class="stat-card">
-                    <span class="stat-title">SERVICES</span>
-                    <span class="stat-value" id="active-tasks-count">3 Channels Ready</span>
+                    <span class="stat-title">ACTIVE PORTS</span>
+                    <span class="stat-value monospace" id="active-tasks-count">3 / 3 CONFIG</span>
                 </div>
             </div>
         </section>
@@ -62,9 +62,8 @@
             <a href="http://localhost:8081" class="module-portal-link" target="_blank">
                 <div class="module-card" id="module-daq">
                     <div class="card-content">
-                        <div class="module-icon icon-blue">
-                            <!-- Waveform / Wave Icon -->
-                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <div class="module-icon">
+                            <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
                             </svg>
                         </div>
@@ -73,24 +72,24 @@
                                 <h3>DAQ USB-4716</h3>
                                 <span class="status-badge badge-active">
                                     <span class="badge-dot"></span>
-                                    Port 8081
+                                    PORT_8081
                                 </span>
                             </div>
-                            <p class="module-desc">High-speed analog-to-digital signal streaming interface. Configures clock rate, sections, and pipelines telemetry to TimescaleDB.</p>
+                            <p class="module-desc">High-speed analog-to-digital signal streaming pipeline. Controls hardware clock rates, buffer allocation, and TimescaleDB synchronization.</p>
                             <div class="module-meta">
                                 <div class="meta-item">
                                     <span class="meta-label">Protocol</span>
-                                    <span class="meta-val">HTTP / Websocket</span>
+                                    <span class="meta-val monospace">WS / TCP</span>
                                 </div>
                                 <div class="meta-item">
-                                    <span class="meta-label">Status</span>
-                                    <span class="meta-val">1000 Hz Streaming</span>
+                                    <span class="meta-label">Telemetry</span>
+                                    <span class="meta-val monospace">1000 Hz / CH0</span>
                                 </div>
                             </div>
                         </div>
                         <div class="action-btn">
-                            <span>Launch Panel</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <span>LAUNCH PANEL</span>
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="7" y1="17" x2="17" y2="7"></line>
                                 <polyline points="7 7 17 7 17 17"></polyline>
                             </svg>
@@ -103,36 +102,35 @@
             <a href="http://localhost:8082" class="module-portal-link" target="_blank">
                 <div class="module-card" id="module-musashi-ii">
                     <div class="card-content">
-                        <div class="module-icon icon-blue">
-                            <!-- Syringe / Nozzle Dispenser Icon -->
-                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <div class="module-icon">
+                            <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="5" y="2" width="14" height="6" rx="1" />
                                 <path d="M12 8v11M8 12h8M12 19l-2 3h4l-2-3" />
                             </svg>
                         </div>
                         <div class="module-info">
                             <div class="module-header">
-                                <h3>Musashi II</h3>
-                                <span class="status-badge badge-active">
+                                <h3>MUSASHI II</h3>
+                                <span class="status-badge badge-standby">
                                     <span class="badge-dot"></span>
-                                    Port 8082
+                                    PORT_8082
                                 </span>
                             </div>
-                            <p class="module-desc">Fluid dispenser controller node. Manages digital pressure values, syringe syringe capacity, and calibration thresholds.</p>
+                            <p class="module-desc">Fluid dispenser module controller. Manages pressure configurations, digital calibration levels, and syringe fluid volumes.</p>
                             <div class="module-meta">
                                 <div class="meta-item">
                                     <span class="meta-label">Protocol</span>
-                                    <span class="meta-val">HTTP / REST</span>
+                                    <span class="meta-val monospace">HTTP / REST</span>
                                 </div>
                                 <div class="meta-item">
-                                    <span class="meta-label">Status</span>
-                                    <span class="meta-val">Standby (120 kPa)</span>
+                                    <span class="meta-label">Telemetry</span>
+                                    <span class="meta-val monospace">STANDBY / 120kPa</span>
                                 </div>
                             </div>
                         </div>
                         <div class="action-btn">
-                            <span>Launch Panel</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <span>LAUNCH PANEL</span>
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="7" y1="17" x2="17" y2="7"></line>
                                 <polyline points="7 7 17 7 17 17"></polyline>
                             </svg>
@@ -145,36 +143,35 @@
             <a href="http://localhost:8083" class="module-portal-link" target="_blank">
                 <div class="module-card" id="module-musashi-iv">
                     <div class="card-content">
-                        <div class="module-icon icon-blue">
-                            <!-- Advanced Dual Syringe Dispenser / Robot Icon -->
-                            <svg viewBox="0 0 24 24" width="32" height="32" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                        <div class="module-icon">
+                            <svg viewBox="0 0 24 24" width="28" height="28" stroke="currentColor" stroke-width="2" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <rect x="2" y="5" width="20" height="5" rx="1" />
                                 <path d="M6 10v9M18 10v9M12 10v5M6 19l-1 3h2l-1-3M18 19l-1 3h2l-1-3" />
                             </svg>
                         </div>
                         <div class="module-info">
                             <div class="module-header">
-                                <h3>Musashi IV</h3>
+                                <h3>MUSASHI IV</h3>
                                 <span class="status-badge badge-offline">
                                     <span class="badge-dot"></span>
-                                    Port 8083
+                                    PORT_8083
                                 </span>
                             </div>
-                            <p class="module-desc">High-precision dual-nozzle dispenser robot control panel. Handles automated micro-dispensation profiles and path mappings.</p>
+                            <p class="module-desc">High-precision dual-nozzle dispenser robot panel. Handles multi-axis positioning coordinates and automated path dispensation.</p>
                             <div class="module-meta">
                                 <div class="meta-item">
                                     <span class="meta-label">Protocol</span>
-                                    <span class="meta-val">HTTP / Websocket</span>
+                                    <span class="meta-val monospace">WS / TCP</span>
                                 </div>
                                 <div class="meta-item">
-                                    <span class="meta-label">Status</span>
-                                    <span class="meta-val">Offline</span>
+                                    <span class="meta-label">Telemetry</span>
+                                    <span class="meta-val monospace">OFFLINE</span>
                                 </div>
                             </div>
                         </div>
                         <div class="action-btn">
-                            <span>Launch Panel</span>
-                            <svg viewBox="0 0 24 24" width="14" height="14" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
+                            <span>LAUNCH PANEL</span>
+                            <svg viewBox="0 0 24 24" width="12" height="12" stroke="currentColor" stroke-width="2.5" fill="none" stroke-linecap="round" stroke-linejoin="round">
                                 <line x1="7" y1="17" x2="17" y2="7"></line>
                                 <polyline points="7 7 17 7 17 17"></polyline>
                             </svg>
@@ -189,15 +186,15 @@
             <div class="console-header">
                 <div class="console-title">
                     <span class="terminal-dot"></span>
-                    <span>System Ingestion Events</span>
+                    <span>GATEWAY INGESTION EVENTS</span>
                 </div>
-                <span class="log-indicator">MDDP Gateway Logger</span>
+                <span class="log-indicator">MDDP_NODE_LOGGER</span>
             </div>
             <div class="console-body" id="log-console">
-                <div class="log-line"><span class="log-time">[22:33:35]</span> <span class="log-tag tag-info">INFO</span> MDDP Data Ingestion Control Center initialized.</div>
-                <div class="log-line"><span class="log-time">[22:33:38]</span> <span class="log-tag tag-success">ONLINE</span> DAQ panel routing active on port 8081.</div>
-                <div class="log-line"><span class="log-time">[22:33:40]</span> <span class="log-tag tag-success">ONLINE</span> Musashi II dispenser panel routing active on port 8082.</div>
-                <div class="log-line"><span class="log-time">[22:33:42]</span> <span class="log-tag tag-warning">WARN</span> Musashi IV service on port 8083 is currently unreachable. Retrying polling sync...</div>
+                <div class="log-line"><span class="log-time">[22:43:22]</span> <span class="log-tag tag-info">INFO</span> MDDP Data Ingestion portal dashboard loaded.</div>
+                <div class="log-line"><span class="log-time">[22:43:24]</span> <span class="log-tag tag-success">SUCCESS</span> Route mapping synced: DAQ USB-4716 -> Port 8081.</div>
+                <div class="log-line"><span class="log-time">[22:43:25]</span> <span class="log-tag tag-success">SUCCESS</span> Route mapping synced: Musashi II -> Port 8082.</div>
+                <div class="log-line"><span class="log-time">[22:43:28]</span> <span class="log-tag tag-warning">WARN</span> Route mapping unreachable: Musashi IV -> Port 8083. Server connection timed out.</div>
             </div>
         </footer>
     </div>

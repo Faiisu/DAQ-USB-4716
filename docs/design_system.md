@@ -1,4 +1,4 @@
-# MDDP Data Ingestion Design System & Patterns
+# MDDP Data Ingestion Design System: Cyber-Industrial / Terminal Mode
 
 This document defines the user interface design standards for the MDDP Data Ingestion Control Center and its distributed service panels. All sub-modules, consoles, and portals must adhere to these design patterns to ensure visual consistency and a cohesive user experience.
 
@@ -6,11 +6,12 @@ This document defines the user interface design standards for the MDDP Data Inge
 
 ## 1. Visual & Aesthetic Philosophy
 
-The MDDP interface prioritizes **high readability, structural clarity, and professional enterprise aesthetics**. It avoids excessive decorative effects (such as heavy glows or animations) and instead uses clean layouts, high-contrast typography, and purposeful indicators.
+The MDDP interface prioritizes **high readability, industrial durability, and professional telemetry monitoring**. It is styled to resemble engineering dashboards (e.g., Grafana, CNC terminals, or flight control systems).
 
-* **Theme**: Light Mode (Light-blue to white gradient/palette).
-* **Grid**: Clean, structural alignments with defined card modules.
-* **Animations**: Subtle, meaningful feedback transitions (e.g., slight elevation on hover, clean active/focus outlines).
+* **Theme**: Dark Mode (Dark Charcoal, Cybernetic Cyan, and Safety Amber).
+* **Grid**: Highly structured panel grid layout with sharp borders.
+* **Corners**: Minimal corner rounding (`4px` to `6px`) to convey structural machinery.
+* **Animations**: Instant state changes with very brief, high-contrast hover indicators.
 
 ---
 
@@ -20,46 +21,47 @@ All UI elements must construct their styles using the following curated color to
 
 | Token Name | Hex Value | UI Role / Usage |
 |---|---|---|
-| `--bg-main` | `#f8fafc` | Overall page background (slate-50) |
-| `--bg-card` | `#ffffff` | Card container background (pure white) |
-| `--border-light` | `#e2e8f0` | Standard divider and card border (slate-200) |
-| `--border-accent` | `#cbd5e1` | Input border and card hover border (slate-300) |
-| `--text-primary` | `#0f172a` | Primary text and major headings (slate-900) |
-| `--text-secondary` | `#475569` | Secondary descriptors and body text (slate-600) |
-| `--text-muted` | `#94a3b8` | Placeholders, timestamps, and metadata (slate-400) |
-| `--accent-sky` | `#0284c7` | Primary brand blue for links, buttons, and status (sky-600) |
-| `--accent-sky-light` | `#e0f2fe` | Light background accent for alerts and highlights (sky-100) |
-| `--badge-bg` | `#f0f9ff` | Default portal status background (sky-50) |
+| `--bg-main` | `#0c0d12` | Overall page background (dark navy charcoal) |
+| `--bg-card` | `#13151a` | Card panel container background (deep flat charcoal) |
+| `--border-light` | `#1e222b` | Standard divider and card border |
+| `--border-accent` | `#2d3443` | Input border and card hover border |
+| `--text-primary` | `#f1f5f9` | Primary text and major headings (slate-100) |
+| `--text-secondary` | `#94a3b8` | Secondary descriptors and body text (slate-400) |
+| `--text-muted` | `#475569` | Placeholders, timestamps, and metadata (slate-600) |
+| `--accent-cyan` | `#06b6d4` | Primary telemetry blue/cyan for buttons, active links, and focus |
+| `--accent-cyan-bg` | `rgba(6, 182, 212, 0.1)` | Translucent cyan backing for status and highlights |
+| `--accent-amber` | `#f59e0b` | Safety alert yellow/amber for warnings and standby states |
+| `--accent-emerald` | `#10b981` | Success emerald for online systems and metrics |
 
 ---
 
 ## 3. Typography & Scale
 
-The design system uses the **Outfit** typeface (or system sans-serif fallbacks) for a modern, clean geometric look.
+The design system uses a combination of **Outfit** for headings and **monospace** (Consolas, SFMono, or system fallbacks) for parameters and logs.
 
-* **Main Titles (`h1`)**: `24px / 1.5rem`, Semi-Bold (`600`), Letter-spacing `-0.02em`
-* **Card Titles (`h3`)**: `18px / 1.125rem`, Semi-Bold (`600`), Letter-spacing `-0.01em`
-* **Body Text**: `14px / 0.875rem`, Regular (`400`), Line-height `1.5`
-* **Metadata/Labels**: `12px / 0.75rem`, Medium (`500`), Letter-spacing `0.05em`
+* **Main Titles (`h1`)**: `22px / 1.375rem`, Semi-Bold (`600`), Letter-spacing `-0.01em`
+* **Card Titles (`h3`)**: `16px / 1rem`, Semi-Bold (`600`), Upper-case Option
+* **Body Text**: `13px / 0.8125rem`, Regular (`400`), Line-height `1.5`
+* **Telemetry/Labels**: `12px / 0.75rem`, Monospace, Medium (`500`), Letter-spacing `0.08em`
 
 ---
 
 ## 4. Components
 
-### A. Main Portal Card
+### A. Terminal Portal Card
 Each control module is presented as a Card Component acting as a gateway (portal) to its respective port:
-* **Layout**: Padding of `2rem` (`32px`), vertical flex gap.
+* **Layout**: Padding of `1.75rem` (`28px`), vertical flex gap.
 * **Border**: `1px solid var(--border-light)`.
 * **Hover Interaction**:
-  * Translate upward by `4px` (`transform: translateY(-4px)`).
-  * Border transitions to `var(--accent-sky)`.
-  * Subtle box shadow: `0 10px 15px -3px rgba(0, 0, 0, 0.05)`.
+  * Border transitions to `var(--accent-cyan)`.
+  * Text color of links changes to white.
+  * Very subtle inner shadow: `inset 0 0 10px rgba(6, 182, 212, 0.05)`.
 
-### B. Status Badges
-Indicates system statuses clearly using colored badges:
-* **Active/Online**: Light green background (`#dcfce7`), text green (`#15803d`).
-* **Standby/Idle**: Light orange/amber background (`#fef3c7`), text orange (`#b45309`).
-* **Offline/Unreachable**: Light gray background (`#f1f5f9`), text gray (`#475569`).
+### B. Segmented Status Badges
+Indicates system statuses clearly using telemetry color rules:
+* **Active/Online**: Solid border `#10b981`, text `#10b981`, translucent green background.
+* **Standby/Idle**: Solid border `#f59e0b`, text `#f59e0b`, translucent amber background.
+* **Offline/Unreachable**: Solid border `#475569`, text `#94a3b8`, translucent gray background.
 
 ---
 
