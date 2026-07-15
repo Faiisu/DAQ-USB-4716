@@ -54,7 +54,14 @@ import psycopg2
 import psycopg2.extras
 import psycopg2.extensions
 
-import config as config  # same config.py as real pipeline
+import json
+from types import SimpleNamespace
+
+with open(os.path.join(os.path.dirname(__file__), "config.json"), "r") as f:
+    _cfg = json.load(f)
+_cfg["USER_BUFFER_SIZE"] = _cfg["SECTION_LENGTH"] * _cfg["CHANNEL_COUNT"]
+_cfg["QUEUE_BATCH_SIZE"] = _cfg["USER_BUFFER_SIZE"]
+config = SimpleNamespace(**_cfg)
 
 # ─── Mock-up Tuning ──────────────────────────────────────────────────────────
 # Waveform parameters for each channel (index = channel offset from START_CHANNEL)

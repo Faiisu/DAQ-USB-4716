@@ -54,7 +54,14 @@ from Automation.BDaq import *
 from Automation.BDaq.WaveformAiCtrl import WaveformAiCtrl
 from Automation.BDaq.BDaqApi import AdxEnumToString, BioFailed
 
-import config as config
+import json
+from types import SimpleNamespace
+
+with open(os.path.join(os.path.dirname(__file__), "config.json"), "r") as f:
+    _cfg = json.load(f)
+_cfg["USER_BUFFER_SIZE"] = _cfg["SECTION_LENGTH"] * _cfg["CHANNEL_COUNT"]
+_cfg["QUEUE_BATCH_SIZE"] = _cfg["USER_BUFFER_SIZE"]
+config = SimpleNamespace(**_cfg)
 
 # ─── Logging ─────────────────────────────────────────────────────────────────
 logging.basicConfig(

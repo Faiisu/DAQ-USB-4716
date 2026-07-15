@@ -57,9 +57,14 @@ import psycopg2
 import psycopg2.extras
 
 # ─── Import DB connection string from project config ─────────────────────────
+import json
+import os
+
 try:
-    from config import DB_DSN
-except ImportError:
+    with open(os.path.join(os.path.dirname(__file__), "config.json"), "r") as f:
+        _cfg = json.load(f)
+    DB_DSN = _cfg["DB_DSN"]
+except Exception:
     try:
         from old.config import DB_DSN
     except ImportError:
