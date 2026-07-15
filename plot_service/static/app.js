@@ -292,6 +292,7 @@ function renderPlotCard(plot) {
                 <option value="900" ${plot.timeRange === 900 ? 'selected' : ''}>15m</option>
                 <option value="1800" ${plot.timeRange === 1800 ? 'selected' : ''}>30m</option>
             </select>
+            <button class="footer-select" onclick="togglePlotPause(${plot.id}, this)" id="pause-btn-${plot.id}" style="background-color: var(--accent-sky); color: var(--bg-main); font-weight: 700; border: none; padding: 0.25rem 0.65rem;">PAUSE</button>
         `;
     } else {
         footerControlsHtml = `
@@ -579,7 +580,60 @@ function showToast(message) {
     }, 3000);
 }
 
+// Toggle Pause/Resume on live charts
+function togglePlotPause(plotId, btn) {
+    const plot = activePlots.find(p => p.id === plotId);
+    if (!plot) return;
+
+    const card = document.getElementById(`plot-card-${plotId}`);
+    const dot = card.querySelector('.pulse-dot');
+    const badge = card.querySelector('.card-badge');
+
+    if (!plot.isPaused) {
+        // Pause updates
+        plot.isPaused = true;
+        if (plot.intervalId) {
+            clearInterval(plot.intervalId);
+            plot.intervalId = null;
+        }
+        btn.textContent = 'RESUME';
+        btn.style.backgroundColor = 'transparent';
+        btn.style.border = '1px solid var(--accent-sky)';
+        btn.style.color = 'var(--accent-sky)';
+
+        // Update header UI to Paused state
+        dot.className = 'pulse-dot grey';
+        dot.style.backgroundColor = 'var(--text-muted)';
+        dot.style.boxShadow = 'none';
+        
+        badge.textContent = 'PAUSED';
+        badge.className = 'card-badge static';
+        showToast("Updates paused.");
+    } else {
+        // Resume updates
+        plot.isPaused = false;
+        btn.textContent = 'PAUSE';
+        btn.style.backgroundColor = 'var(--accent-sky)';
+        btn.style.color = 'var(--bg-main)';
+        btn.style.border = 'none';
+
+        // Update header UI back to Live state
+        dot.className = 'pulse-dot green';
+        dot.style.backgroundColor = 'var(--accent-emerald)';
+        dot.style.boxShadow = '0 0 6px var(--accent-emerald)';
+        
+        badge.textContent = 'LIVE';
+        badge.className = 'card-badge live';
+
+        // Restart interval loop
+        plot.intervalId = setInterval(() => queryPlotData(plot), 1000);
+        queryPlotData(plot); // Fetch immediately
+        showToast("Updates resumed.");
+    }
+}
+
 // Bind functions to window object for dynamic onclick access
 window.deletePlot = deletePlot;
 window.updatePlotChannel = updatePlotChannel;
 window.updatePlotTimeRange = updatePlotTimeRange;
+window.togglePlotPause = togglePlotPause;
