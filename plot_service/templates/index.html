@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>MDDP Ingestion Telemetry Visualizer</title>
+    <title>MDDP Database Plotter</title>
     <!-- Outfit Font & Monospace -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -24,8 +24,8 @@
                     </svg>
                 </a>
                 <div class="brand-text">
-                    <h1>MDDP TELEMETRY VISUALIZER</h1>
-                    <span class="sub-text">REAL-TIME TIME-SERIES DATA VIEWER</span>
+                    <h1>MDDP DATABASE PLOTTER</h1>
+                    <span class="sub-text">REAL-TIME TIME-SERIES DATA MONITOR</span>
                 </div>
             </div>
             <div class="header-status">
@@ -42,11 +42,29 @@
             <!-- Left Side: Controls Panel -->
             <section class="control-panel">
                 <div class="panel-header">
+                    <h2>SYSTEM SELECTION</h2>
+                    <span class="panel-subtitle">Select process telemetry target</span>
+                </div>
+
+                <!-- 1. Service Selection Dropdown -->
+                <div class="control-group">
+                    <label for="service-select">ACTIVE SYSTEM SERVICE</label>
+                    <select id="service-select" class="form-input">
+                        <option value="daq" selected>DAQ USB-4716</option>
+                        <option value="musashi_ii">Musashi II Dispenser</option>
+                        <option value="musashi_iv">Musashi IV Robot</option>
+                    </select>
+                </div>
+
+                <div class="panel-divider"></div>
+
+                <div class="panel-header">
                     <h2>CHART CONTROLS</h2>
                     <span class="panel-subtitle">Filter channel ranges and Y-limits</span>
                 </div>
 
-                <div class="control-group">
+                <!-- DAQ Channel Input (hidden when other services are selected) -->
+                <div id="daq-controls-group" class="control-group">
                     <label for="channel-select">DATA CHANNEL</label>
                     <select id="channel-select" class="form-input">
                         <option value="0">Channel 0 (DAQ)</option>
@@ -85,11 +103,11 @@
 
                 <div class="form-row">
                     <div class="control-group">
-                        <label for="y-min-input">Y-MIN (V)</label>
+                        <label for="y-min-input">Y-MIN</label>
                         <input type="number" id="y-min-input" class="form-input" placeholder="Auto" step="any">
                     </div>
                     <div class="control-group">
-                        <label for="y-max-input">Y-MAX (V)</label>
+                        <label for="y-max-input">Y-MAX</label>
                         <input type="number" id="y-max-input" class="form-input" placeholder="Auto" step="any">
                     </div>
                 </div>

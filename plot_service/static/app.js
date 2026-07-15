@@ -3,6 +3,7 @@
 // English comments only
 
 let autoRefreshInterval = null;
+let currentService = 'daq';
 
 document.addEventListener('DOMContentLoaded', () => {
     // Start clock display
@@ -15,6 +16,7 @@ document.addEventListener('DOMContentLoaded', () => {
     queryDatabase();
 
     // Event listeners
+    document.getElementById('service-select').addEventListener('change', handleServiceChange);
     document.getElementById('time-range-select').addEventListener('change', handleTimeRangeChange);
     document.getElementById('refresh-btn').addEventListener('click', queryDatabase);
     document.getElementById('auto-refresh').addEventListener('change', handleAutoRefreshToggle);
@@ -34,7 +36,7 @@ function updateClock() {
     clockEl.textContent = `${hours}:${minutes}:${seconds} UTC`;
 }
 
-// Dynamically fetch channels from DB and populate dropdown
+// Fetch available DAQ channels on startup
 async function fetchChannels() {
     const channelSelect = document.getElementById('channel-select');
     try {
@@ -45,13 +47,29 @@ async function fetchChannels() {
             channels.forEach(ch => {
                 const opt = document.createElement('option');
                 opt.value = ch;
-                opt.textContent = `Channel ${ch} (${ch === 0 ? 'DAQ' : 'Generic'})`;
+                opt.textContent = `Channel ${ch} (DAQ)`;
                 channelSelect.appendChild(opt);
             });
         }
     } catch (e) {
         console.error("Failed to fetch channel list:", e);
     }
+}
+
+// Handle switching between systems (DAQ, Musashi II, Musashi IV)
+function handleServiceChange() {
+    currentService = document.getElementById('service-select').value;
+    const daqGroup = document.getElementById('daq-controls-group');
+    
+    if (currentService === 'daq') {
+        daqGroup.classList.remove('hidden');
+    } else {
+        daqGroup.classList.add('hidden');
+    }
+    
+    // Clear and redraw the chart structure immediately for the selected service
+    initChart();
+    queryDatabase();
 }
 
 // Toggle custom date picker inputs based on selection
@@ -61,12 +79,8 @@ function handleTimeRangeChange() {
     
     if (timeRange === 'custom') {
         customTimeInputs.classList.remove('hidden');
-        
-        // Populate default custom times (start: 5 mins ago, end: now)
         const now = new Date();
         const start = new Date(now.getTime() - 5 * 60 * 1000);
-        
-        // Convert to Local ISO string (YYYY-MM-DDTHH:MM) required by datetime-local inputs
         document.getElementById('start-datetime').value = toLocalISOString(start);
         document.getElementById('end-datetime').value = toLocalISOString(now);
     } else {
@@ -74,11 +88,10 @@ function handleTimeRangeChange() {
     }
 }
 
-// Helper to format datetime-local strings
+// Helper to format datetime-local inputs
 function toLocalISOString(date) {
     const tzOffset = date.getTimezoneOffset() * 60000;
-    const localISOTime = (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
-    return localISOTime;
+    return (new Date(date.getTime() - tzOffset)).toISOString().slice(0, 16);
 }
 
 // Handle auto-refresh interval loops
@@ -97,72 +110,122 @@ function handleAutoRefreshToggle() {
     }
 }
 
-// Initialize empty Plotly chart
+// Define the static Chart Layout parameters matching the dark-grey theme
+const chartLayout = {
+    paper_bgcolor: '#1c1e22',
+    plot_bgcolor: '#0f1013',
+    margin: { t: 30, r: 40, b: 40, l: 50 },
+    dragmode: 'pan', // Default to pan/slide mode
+    legend: {
+        font: { color: '#cbd5e1', size: 9 },
+        orientation: 'h',
+        y: 1.1
+    },
+    xaxis: {
+        type: 'date',
+        gridcolor: '#2b2f38',
+        zerolinecolor: '#3f4756',
+        tickcolor: '#2b2f38',
+        tickfont: { color: '#cbd5e1', size: 10 },
+        hoverformat: '%H:%M:%S.%L'
+    },
+    yaxis: {
+        gridcolor: '#2b2f38',
+        zerolinecolor: '#3f4756',
+        tickcolor: '#2b2f38',
+        tickfont: { color: '#cbd5e1', size: 10 },
+        autorange: true
+    }
+};
+
+const chartConfig = {
+    responsive: true,
+    displaylogo: false,
+    modeBarButtonsToRemove: ['lasso2d', 'select2d']
+};
+
+// Initialize or reset the Plotly chart structure based on active service
 function initChart() {
-    const plotData = [{
-        x: [],
-        y: [],
-        type: 'scatter',
-        mode: 'lines',
-        name: 'Telemetry Signal',
-        line: {
-            color: '#0ea5e9',
-            width: 1.5
-        },
-        // Formatting tooltip with millisecond precision
-        hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Value:</b> %{y:.4f} V<extra></extra>'
-    }];
+    let initialTraces = [];
+    
+    if (currentService === 'daq') {
+        initialTraces.push({
+            x: [],
+            y: [],
+            name: 'DAQ Voltage',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#0ea5e9', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Voltage:</b> %{y:.4f} V<extra></extra>'
+        });
+    } else if (currentService === 'musashi_ii') {
+        initialTraces.push({
+            x: [],
+            y: [],
+            name: 'Dispenser Pressure',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#a855f7', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Pressure:</b> %{y:.2f} kPa<extra></extra>'
+        }, {
+            x: [],
+            y: [],
+            name: 'Fluid Temp',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#f59e0b', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Temp:</b> %{y:.2f} °C<extra></extra>'
+        });
+    } else if (currentService === 'musashi_iv') {
+        initialTraces.push({
+            x: [],
+            y: [],
+            name: 'Axis X',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#38bdf8', width: 1.2 },
+            hovertemplate: '<b>X:</b> %{y:.3f} mm<extra></extra>'
+        }, {
+            x: [],
+            y: [],
+            name: 'Axis Y',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#10b981', width: 1.2 },
+            hovertemplate: '<b>Y:</b> %{y:.3f} mm<extra></extra>'
+        }, {
+            x: [],
+            y: [],
+            name: 'Axis Z',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ef4444', width: 1.2 },
+            hovertemplate: '<b>Z:</b> %{y:.3f} mm<extra></extra>'
+        });
+    }
 
-    const layout = {
-        paper_bgcolor: '#1c1e22',
-        plot_bgcolor: '#0f1013',
-        margin: { t: 20, r: 20, b: 40, l: 50 },
-        // Enable sliding/dragging by setting default dragmode to 'pan'
-        dragmode: 'pan',
-        xaxis: {
-            type: 'date',
-            gridcolor: '#2b2f38',
-            zerolinecolor: '#3f4756',
-            tickcolor: '#2b2f38',
-            tickfont: { color: '#cbd5e1', size: 10 },
-            hoverformat: '%H:%M:%S.%L' // format time as HH:MM:SS.mmm in tooltip
-        },
-        yaxis: {
-            gridcolor: '#2b2f38',
-            zerolinecolor: '#3f4756',
-            tickcolor: '#2b2f38',
-            tickfont: { color: '#cbd5e1', size: 10 },
-            autorange: true
-        }
-    };
-
-    const config = {
-        responsive: true,
-        displaylogo: false,
-        // Include buttons for zoom/pan on the graph toolbar
-        modeBarButtonsToRemove: ['lasso2d', 'select2d']
-    };
-
-    Plotly.newPlot('plotly-chart', plotData, layout, config);
+    Plotly.newPlot('plotly-chart', initialTraces, chartLayout, chartConfig);
 }
 
-// Query TimeScaleDB and update the chart
+// Fetch database metrics (or mock data) and render on graph
 async function queryDatabase() {
-    const channel = parseInt(document.getElementById('channel-select').value, 10);
     const rangeType = document.getElementById('time-range-select').value;
+    let url = '';
     
-    let url = `/api/data?channel=${channel}`;
+    // Choose endpoint based on service
+    if (currentService === 'daq') {
+        const channel = parseInt(document.getElementById('channel-select').value, 10);
+        url = `/api/data?channel=${channel}`;
+    } else {
+        url = `/api/data/mock?service=${currentService}`;
+    }
     
+    // Append range bounds
     if (rangeType === 'custom') {
         const startVal = document.getElementById('start-datetime').value;
         const endVal = document.getElementById('end-datetime').value;
+        if (!startVal || !endVal) return;
         
-        if (!startVal || !endVal) {
-            console.warn("Custom range values missing.");
-            return;
-        }
-        
-        // Convert local times to ISO format
         const startISO = new Date(startVal).toISOString();
         const endISO = new Date(endVal).toISOString();
         url += `&start=${startISO}&end=${endISO}`;
@@ -173,23 +236,21 @@ async function queryDatabase() {
 
     try {
         const res = await fetch(url);
-        if (!res.ok) throw new Error("Database query failed.");
-        const data = await res.json();
+        if (!res.ok) throw new Error("Telemetry query failed.");
+        const result = await res.json();
 
-        updateChart(data.times, data.values);
+        updateChart(result);
     } catch (e) {
         console.error("Telemetry query error:", e);
     }
 }
 
-// Push fresh data and refresh the Plotly layout
-function updateChart(times, values) {
+// Re-draw traces with fresh database data
+function updateChart(result) {
     const yMinInput = document.getElementById('y-min-input').value;
     const yMaxInput = document.getElementById('y-max-input').value;
 
     const yAxisUpdate = {};
-    
-    // Check if user set custom Y scale overrides
     if (yMinInput !== "" && yMaxInput !== "") {
         yAxisUpdate.autorange = false;
         yAxisUpdate.range = [parseFloat(yMinInput), parseFloat(yMaxInput)];
@@ -197,11 +258,69 @@ function updateChart(times, values) {
         yAxisUpdate.autorange = true;
     }
 
-    // Refresh layout and scatter line data
-    Plotly.update('plotly-chart', {
-        x: [times],
-        y: [values]
-    }, {
-        yaxis: yAxisUpdate
-    });
+    const times = result.times;
+    let traces = [];
+
+    // Dynamically build traces based on current service type
+    if (currentService === 'daq') {
+        traces.push({
+            x: times,
+            y: result.values,
+            name: 'DAQ Voltage',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#0ea5e9', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Voltage:</b> %{y:.4f} V<extra></extra>'
+        });
+    } else if (currentService === 'musashi_ii') {
+        traces.push({
+            x: times,
+            y: result.data.pressure,
+            name: 'Pressure (kPa)',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#a855f7', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Pressure:</b> %{y} kPa<extra></extra>'
+        }, {
+            x: times,
+            y: result.data.temp,
+            name: 'Fluid Temp (°C)',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#f59e0b', width: 1.5 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Temp:</b> %{y} °C<extra></extra>'
+        });
+    } else if (currentService === 'musashi_iv') {
+        traces.push({
+            x: times,
+            y: result.data.x,
+            name: 'Axis X',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#38bdf8', width: 1.2 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>X:</b> %{y} mm<extra></extra>'
+        }, {
+            x: times,
+            y: result.data.y,
+            name: 'Axis Y',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#10b981', width: 1.2 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Y:</b> %{y} mm<extra></extra>'
+        }, {
+            x: times,
+            y: result.data.z,
+            name: 'Axis Z',
+            type: 'scatter',
+            mode: 'lines',
+            line: { color: '#ef4444', width: 1.2 },
+            hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>Z:</b> %{y} mm<extra></extra>'
+        });
+    }
+
+    // Apply scaling update to global layout
+    chartLayout.yaxis = Object.assign({}, chartLayout.yaxis, yAxisUpdate);
+
+    // Call Plotly.react for highly efficient dynamic trace re-rendering
+    Plotly.react('plotly-chart', traces, chartLayout, chartConfig);
 }
