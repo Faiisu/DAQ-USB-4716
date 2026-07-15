@@ -37,15 +37,15 @@ document.addEventListener('DOMContentLoaded', () => {
     });
 });
 
-// Update header clock (UTC)
+// Update header clock (local)
 function updateClock() {
     const clockEl = document.getElementById('realtime-clock');
     if (!clockEl) return;
     const now = new Date();
-    const hours = String(now.getUTCHours()).padStart(2, '0');
-    const minutes = String(now.getUTCMinutes()).padStart(2, '0');
-    const seconds = String(now.getUTCSeconds()).padStart(2, '0');
-    clockEl.textContent = `${hours}:${minutes}:${seconds} UTC`;
+    const hours = String(now.getHours()).padStart(2, '0');
+    const minutes = String(now.getMinutes()).padStart(2, '0');
+    const seconds = String(now.getSeconds()).padStart(2, '0');
+    clockEl.textContent = `${hours}:${minutes}:${seconds}`;
 }
 
 // Fetch the default database connection string from backend configuration
