@@ -1,4 +1,4 @@
-# config.py (Auto-generated/updated by Web GUI on 2026-07-15T02:07:38.974395)
+# config.py (Auto-generated/updated by Web GUI on 2026-07-15T10:36:26.055428)
 
 # ─── DAQ Hardware ────────────────────────────────────────────────────────────
 DEVICE_DESCRIPTION   = 'USB-4716,BID#0'
@@ -19,8 +19,8 @@ QUEUE_BATCH_SIZE     = USER_BUFFER_SIZE
 QUEUE_MAXSIZE        = 200
 
 # ─── Database ────────────────────────────────────────────────────────────────
-DB_DSN               = 'postgresql://admin:admin@172.21.108.89:5432/daq_db'
-MOCKUP_DB_DSN        = 'postgresql://admin:admin@localhost:5432/daq_db'
+DB_DSN               = 'postgresql://admin:admin@172.21.108.86:5432/daq_db'
+MOCKUP_DB_DSN        = 'postgresql://admin:admin@172.21.108.86:5432/daq_db'
 DB_PAGE_SIZE         = 1000
 
 # ─── Logging ─────────────────────────────────────────────────────────────────

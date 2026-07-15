@@ -275,6 +275,48 @@ export function resetPlotZoom() {
   }
 }
 
+export function updateYScale() {
+  const autoEl   = document.getElementById('y-auto');
+  const manualEl = document.getElementById('y-manual-controls');
+  const isAuto   = autoEl?.checked ?? true;
+
+  // Toggle manual controls visibility
+  if (manualEl) {
+    if (isAuto) {
+      manualEl.classList.add('hidden');
+    } else {
+      manualEl.classList.remove('hidden');
+    }
+  }
+
+  if (!plotChart) return;
+
+  if (isAuto) {
+    // Let Chart.js determine Y bounds from data
+    delete plotChart.options.scales.y.min;
+    delete plotChart.options.scales.y.max;
+    plotChart.options.scales.y.ticks.stepSize = undefined;
+  } else {
+    const yMin = parseFloat(document.getElementById('y-min')?.value);
+    const yMax = parseFloat(document.getElementById('y-max')?.value);
+    plotChart.options.scales.y.min = isNaN(yMin) ? 0 : yMin;
+    plotChart.options.scales.y.max = isNaN(yMax) ? 5 : yMax;
+    // Auto-calculate a reasonable step size
+    const range = (plotChart.options.scales.y.max - plotChart.options.scales.y.min);
+    if (range > 0 && range <= 1) {
+      plotChart.options.scales.y.ticks.stepSize = 0.1;
+    } else if (range <= 5) {
+      plotChart.options.scales.y.ticks.stepSize = 0.5;
+    } else if (range <= 20) {
+      plotChart.options.scales.y.ticks.stepSize = 2;
+    } else {
+      plotChart.options.scales.y.ticks.stepSize = undefined; // let Chart.js decide
+    }
+  }
+
+  plotChart.update('none');
+}
+
 export async function runStaticPlot() {
   if (_plotMode !== 'history') return;
 

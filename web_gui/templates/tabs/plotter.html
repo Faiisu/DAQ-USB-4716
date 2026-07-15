@@ -127,8 +127,24 @@
         <span class="icon-dot" id="plot-chart-dot" style="animation:pulse-glow 2s infinite"></span>
         Waveform Graph
       </div>
-      <div class="card-actions">
+      <div class="card-actions" style="display:flex; align-items:center; gap:12px; flex-wrap:wrap;">
         <span class="tag" id="static-time-range"></span>
+
+        <!-- Y-Axis Scale Controls -->
+        <div style="display:flex; align-items:center; gap:8px; font-size:11px; color:var(--text-sub);">
+          <span style="color:var(--text-muted); font-weight:500;">Y:</span>
+          <label style="display:flex; align-items:center; gap:4px; cursor:pointer;">
+            <input type="checkbox" id="y-auto" checked onchange="updateYScale()"/>
+            <span>Auto</span>
+          </label>
+          <div id="y-manual-controls" class="hidden" style="display:flex; align-items:center; gap:6px;">
+            <input class="form-control" id="y-min" type="number" step="0.1" value="0" style="width:68px; height:26px; font-size:11px; padding:2px 6px;" onchange="updateYScale()" title="Y-axis minimum"/>
+            <span style="color:var(--text-muted);">–</span>
+            <input class="form-control" id="y-max" type="number" step="0.1" value="5" style="width:68px; height:26px; font-size:11px; padding:2px 6px;" onchange="updateYScale()" title="Y-axis maximum"/>
+            <span style="color:var(--text-muted);">V</span>
+          </div>
+        </div>
+
         <button class="btn btn-ghost btn-sm" onclick="resetPlotZoom()" style="padding: 4px 8px;" title="Reset zoom/pan to default">
           <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2"><path d="M15 3h6v6M9 21H3v-6M21 3l-7 7M3 21l7-7"/></svg>
           Reset Zoom

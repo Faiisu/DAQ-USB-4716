@@ -158,6 +158,7 @@ window.togglePlotMode = chart.togglePlotMode;
 window.toggleLiveSession = chart.toggleLiveSession;
 window.clearLiveChart = chart.clearLiveChart;
 window.resetPlotZoom = chart.resetPlotZoom;
+window.updateYScale = chart.updateYScale;
 window.runStaticPlot = chart.runStaticPlot;
 window.fetchChannels = chart.fetchChannels;
 

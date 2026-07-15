@@ -171,7 +171,85 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
 
         else:
             # Real hardware mode
-            if not BDAQ_AVAILABLE:
+            if BDAQ_AVAILABLE:
+                def _daq_real():
+                    try:
+                        wf = WaveformAiCtrl(cfg["device_description"])
+                        wf.loadProfile            = cfg["profile_path"]
+                        wf.conversion.channelStart = cfg["start_channel"]
+                        wf.conversion.channelCount = cfg["channel_count"]
+                        wf.conversion.clockRate    = cfg["clock_rate"]
+                        wf.record.sectionCount     = cfg["section_count"]
+                        wf.record.sectionLength    = cfg["section_length"]
+
+                        for i in range(cfg["channel_count"]):
+                            ch = cfg["start_channel"] + i
+                            wf.channels[ch].signalType = AiSignalType.SingleEnded
+                            wf.channels[ch].valueRange = ValueRange.V_0To5
+
+                        ret = wf.prepare()
+                        if BioFailed(ret):
+                            emit_log(
+                                "DAQ prepare() failed — check device "
+                                "connection and profile.xml",
+                                "error",
+                            )
+                            _stop_event.set()
+                            return
+
+                        ret = wf.start()
+                        if BioFailed(ret):
+                            emit_log("DAQ start() failed", "error")
+                            _stop_event.set()
+                            return
+
+                        user_buffer_size = sec_len * n_ch
+                        while not _stop_event.is_set():
+                            result = wf.getDataF64(user_buffer_size, -1)
+                            batch_wall_ts_ns = time.time_ns()
+                            ret, returned_count, raw_data = (
+                                result[0], result[1], result[2]
+                            )
+
+                            if BioFailed(ret):
+                                emit_log(
+                                    "getDataF64() error — stopping DAQ thread",
+                                    "error",
+                                )
+                                _stop_event.set()
+                                break
+
+                            if returned_count <= 0:
+                                continue
+
+                            raw_copy = list(raw_data[:returned_count])
+                            try:
+                                data_queue.put_nowait(
+                                    (batch_wall_ts_ns, raw_copy, returned_count)
+                                )
+                                with _stats_lock:
+                                    _stats["polled"]   += returned_count
+                                    _stats["enqueued"] += 1
+                            except queue.Full:
+                                with _stats_lock:
+                                    _stats["dropped"] += 1
+                                emit_log("Queue full — batch dropped", "warn")
+
+                    except Exception as ex:
+                        emit_log(f"DAQ hardware error: {ex}", "error")
+                        _stop_event.set()
+                    finally:
+                        try:
+                            wf.stop()
+                            wf.dispose()
+                        except Exception:
+                            pass
+                        emit_log("DAQ hardware thread stopped.")
+
+                daq_target = _daq_real
+                daq_name   = "RealDAQ"
+
+            else:
                 err = (
                     "Advantech BDaq SDK is not available. "
                     "Install the SDK to use real hardware mode."
@@ -182,83 +260,6 @@ def start_pipeline(cfg: dict, mode: str) -> tuple[bool, str]:
                     _stats["mode"] = "stopped"
                 _emit_stats()
                 return False, err
-
-            def _daq_real():
-                try:
-                    wf = WaveformAiCtrl(cfg["device_description"])
-                    wf.loadProfile            = cfg["profile_path"]
-                    wf.conversion.channelStart = cfg["start_channel"]
-                    wf.conversion.channelCount = cfg["channel_count"]
-                    wf.conversion.clockRate    = cfg["clock_rate"]
-                    wf.record.sectionCount     = cfg["section_count"]
-                    wf.record.sectionLength    = cfg["section_length"]
-
-                    for i in range(cfg["channel_count"]):
-                        ch = cfg["start_channel"] + i
-                        wf.channels[ch].signalType = AiSignalType.SingleEnded
-                        wf.channels[ch].valueRange = ValueRange.V_0To5
-
-                    ret = wf.prepare()
-                    if BioFailed(ret):
-                        emit_log(
-                            "DAQ prepare() failed — check device "
-                            "connection and profile.xml",
-                            "error",
-                        )
-                        _stop_event.set()
-                        return
-
-                    ret = wf.start()
-                    if BioFailed(ret):
-                        emit_log("DAQ start() failed", "error")
-                        _stop_event.set()
-                        return
-
-                    user_buffer_size = sec_len * n_ch
-                    while not _stop_event.is_set():
-                        result = wf.getDataF64(user_buffer_size, -1)
-                        batch_wall_ts_ns = time.time_ns()
-                        ret, returned_count, raw_data = (
-                            result[0], result[1], result[2]
-                        )
-
-                        if BioFailed(ret):
-                            emit_log(
-                                "getDataF64() error — stopping DAQ thread",
-                                "error",
-                            )
-                            _stop_event.set()
-                            break
-
-                        if returned_count <= 0:
-                            continue
-
-                        raw_copy = list(raw_data[:returned_count])
-                        try:
-                            data_queue.put_nowait(
-                                (batch_wall_ts_ns, raw_copy, returned_count)
-                            )
-                            with _stats_lock:
-                                _stats["polled"]   += returned_count
-                                _stats["enqueued"] += 1
-                        except queue.Full:
-                            with _stats_lock:
-                                _stats["dropped"] += 1
-                            emit_log("Queue full — batch dropped", "warn")
-
-                except Exception as ex:
-                    emit_log(f"DAQ hardware error: {ex}", "error")
-                    _stop_event.set()
-                finally:
-                    try:
-                        wf.stop()
-                        wf.dispose()
-                    except Exception:
-                        pass
-                    emit_log("DAQ hardware thread stopped.")
-
-            daq_target = _daq_real
-            daq_name   = "RealDAQ"
 
         # ── 4. DB writer thread ──────────────────────────────────────────
         def _db_writer():
