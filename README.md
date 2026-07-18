@@ -15,7 +15,7 @@ This repository features:
 Shows how a user configures and runs the data acquisition and plotting pipeline.
 
 ```mermaid
-graph TB
+graph LR
     Start([User Starts System]) --> StartDocker[Start TimescaleDB Container]
     StartDocker --> RunScripts[Run Ingestion Control Suite run.sh]
     RunScripts --> LaunchPortal[Access Portal Gateway :8080]
@@ -117,7 +117,7 @@ graph LR
         Plotter["📈 Interactive Plotly charts"]
     end
 
-    DBThread -->|5. execute_values (batch size=1000)| daq_samples
+    DBThread -->|"5. execute_values (batch size=1000)"| daq_samples
     daq_samples -->|6. REST API SELECT| Plotter
 ```
 
