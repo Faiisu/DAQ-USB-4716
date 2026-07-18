@@ -2,6 +2,9 @@
 # See: docs/architecture/context.md
 # English comments only
 
+import eventlet
+eventlet.monkey_patch()
+
 import os
 import sys
 import json
@@ -137,7 +140,14 @@ def tail_log_file():
             while not stop_tail_event.is_set():
                 pid, _ = get_running_process()
                 if pid is None:
-                    # DAQ process stopped; close tailing thread
+                    # DAQ process stopped; close tailing thread and notify client
+                    socketio.emit('status_change', {'is_running': False})
+                    if os.path.exists(PID_PATH):
+                        try: os.remove(PID_PATH)
+                        except: pass
+                    if os.path.exists(MODE_PATH):
+                        try: os.remove(MODE_PATH)
+                        except: pass
                     break
                     
                 line = f.readline()
@@ -276,7 +286,14 @@ def handle_stop():
     """Stops the detached process by its recorded PID."""
     pid, _ = get_running_process()
     if pid is None:
-        emit('log_update', {'log': '[SYSTEM] Warning: Ingestion process is not running.'})
+        socketio.emit('status_change', {'is_running': False})
+        emit('log_update', {'log': '[SYSTEM] Warning: Ingestion process is not running. Resetting UI state.'})
+        if os.path.exists(PID_PATH):
+            try: os.remove(PID_PATH)
+            except: pass
+        if os.path.exists(MODE_PATH):
+            try: os.remove(MODE_PATH)
+            except: pass
         return
         
     socketio.emit('log_update', {'log': f'[SYSTEM] Terminating process (PID: {pid})...'})
@@ -290,9 +307,11 @@ def handle_stop():
     
     # 3. Clean up metadata files
     if os.path.exists(PID_PATH):
-        os.remove(PID_PATH)
+        try: os.remove(PID_PATH)
+        except: pass
     if os.path.exists(MODE_PATH):
-        os.remove(MODE_PATH)
+        try: os.remove(MODE_PATH)
+        except: pass
         
     socketio.emit('status_change', {'is_running': False})
     socketio.emit('log_update', {'log': '[SYSTEM] Ingestion process terminated.'})

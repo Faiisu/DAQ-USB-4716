@@ -95,110 +95,241 @@ def daq_reader_thread():
     Responsibility: poll hardware as fast as possible, enqueue raw data.
     Does NO parsing — just copies the returned list and enqueues immediately.
     """
-    wf = WaveformAiCtrl(config.DEVICE_DESCRIPTION)
-    wf.loadProfile         = config.PROFILE_PATH
-    wf.conversion.channelStart = config.START_CHANNEL
-    wf.conversion.channelCount = config.CHANNEL_COUNT
-    wf.conversion.clockRate    = config.CLOCK_RATE
-    wf.record.sectionCount     = config.SECTION_COUNT
-    wf.record.sectionLength    = config.SECTION_LENGTH
-
-    for i in range(config.CHANNEL_COUNT):
-        wf.channels[config.START_CHANNEL + i].signalType = AiSignalType.SingleEnded
-        wf.channels[config.START_CHANNEL + i].valueRange = ValueRange.V_0To5
-
-    ret = wf.prepare()
-    if BioFailed(ret):
-        log.error("DAQ prepare() failed — check device connection and profile.xml")
-        stop_event.set()
-        return
-
-    ret = wf.start()
-    if BioFailed(ret):
-        log.error("DAQ start() failed")
-        stop_event.set()
-        return
-
-    log.info(
-        f"DAQ started | device={config.DEVICE_DESCRIPTION} | "
-        f"channels={config.CHANNEL_COUNT} | clock={config.CLOCK_RATE} Hz | "
-        f"sectionLength={config.SECTION_LENGTH} | userBuffer={config.USER_BUFFER_SIZE}"
-    )
-
     try:
-        log.info("DAQ loop started — per-batch wall-clock anchoring active (ms-scale sync)")
+        wf = WaveformAiCtrl(config.DEVICE_DESCRIPTION)
+        wf.loadProfile         = config.PROFILE_PATH
+        wf.conversion.channelStart = config.START_CHANNEL
+        wf.conversion.channelCount = config.CHANNEL_COUNT
+        wf.conversion.clockRate    = config.CLOCK_RATE
+        wf.record.sectionCount     = config.SECTION_COUNT
+        wf.record.sectionLength    = config.SECTION_LENGTH
 
-        while not stop_event.is_set():
-            # Block until USER_BUFFER_SIZE interleaved samples are ready
-            # timeout=-1 means wait indefinitely for requested count
-            result = wf.getDataF64(config.USER_BUFFER_SIZE, -1)
+        for i in range(config.CHANNEL_COUNT):
+            wf.channels[config.START_CHANNEL + i].signalType = AiSignalType.SingleEnded
+            wf.channels[config.START_CHANNEL + i].valueRange = ValueRange.V_0To5
 
-            # ── Capture wall-clock timestamp IMMEDIATELY after getDataF64() returns ──
-            # This is the best approximation of when the LAST sample in this batch
-            # was produced by the hardware. OS scheduling jitter is typically ~1 ms.
-            batch_wall_ts_ns = time.time_ns()
+        ret = wf.prepare()
+        if BioFailed(ret):
+            log.error("DAQ prepare() failed — check device connection and profile.xml")
+            stop_event.set()
+            return
 
-            ret, returned_count, raw_data = result[0], result[1], result[2]
+        ret = wf.start()
+        if BioFailed(ret):
+            log.error("DAQ start() failed")
+            stop_event.set()
+            return
 
-            if BioFailed(ret):
-                log.error("getDataF64() error — stopping DAQ thread")
-                stop_event.set()
-                break
+        log.info(
+            f"DAQ started | device={config.DEVICE_DESCRIPTION} | "
+            f"channels={config.CHANNEL_COUNT} | clock={config.CLOCK_RATE} Hz | "
+            f"sectionLength={config.SECTION_LENGTH} | userBuffer={config.USER_BUFFER_SIZE}"
+        )
 
-            if returned_count <= 0:
-                continue
+        try:
+            log.info("DAQ loop started — per-batch wall-clock anchoring active (ms-scale sync)")
 
-            # ── Minimal work: copy raw list + enqueue immediately ──
-            # DO NOT loop/parse here — let DB writer handle it
-            raw_copy = list(raw_data[:returned_count])
+            while not stop_event.is_set():
+                # Block until USER_BUFFER_SIZE interleaved samples are ready
+                # timeout=-1 means wait indefinitely for requested count
+                result = wf.getDataF64(config.USER_BUFFER_SIZE, -1)
 
+                # ── Capture wall-clock timestamp IMMEDIATELY after getDataF64() returns ──
+                # This is the best approximation of when the LAST sample in this batch
+                # was produced by the hardware. OS scheduling jitter is typically ~1 ms.
+                batch_wall_ts_ns = time.time_ns()
+
+                ret, returned_count, raw_data = result[0], result[1], result[2]
+
+                if BioFailed(ret):
+                    log.error("getDataF64() error — stopping DAQ thread")
+                    stop_event.set()
+                    break
+
+                if returned_count <= 0:
+                    continue
+
+                # ── Minimal work: copy raw list + enqueue immediately ──
+                # DO NOT loop/parse here — let DB writer handle it
+                raw_copy = list(raw_data[:returned_count])
+
+                try:
+                    data_queue.put_nowait((batch_wall_ts_ns, raw_copy, returned_count))
+                    with stats_lock:
+                        stats["polled"]   += returned_count
+                        stats["enqueued"] += 1
+                except queue.Full:
+                    with stats_lock:
+                        stats["dropped"] += 1
+                    log.warning(
+                        f"Queue full! Dropped 1 batch ({returned_count} samples). "
+                        f"DB writer may be too slow."
+                    )
+
+        finally:
+            wf.stop()
+            # wf.release()
+            wf.dispose()
+            log.info("DAQ thread stopped and device released.")
+    except Exception as e:
+        log.exception(f"Unhandled exception in DAQ Reader thread: {e}")
+        stop_event.set()
+
+
+
+# ─── Data Extraction, Calibration, and Storage Components (SRP Design) ───────
+
+class Calibrator:
+    """
+    Responsibility: Handle calibration configuration parsing and scaling calculations.
+    """
+    def __init__(self, start_channel, channel_count, scale_configs):
+        self.calibrations = {}
+        if isinstance(scale_configs, dict):
+            for ch in range(channel_count):
+                ch_num = start_channel + ch
+                scale_cfg = scale_configs.get(str(ch_num))
+                if scale_cfg and scale_cfg.get('enabled', False):
+                    low_volt = scale_cfg.get('low_voltage', 0.0)
+                    high_volt = scale_cfg.get('high_voltage', 10.0)
+                    low_val = scale_cfg.get('low_value', 0.0)
+                    high_val = scale_cfg.get('high_value', 100.0)
+                    denom = high_volt - low_volt
+                    if abs(denom) > 1e-9:
+                        slope = (high_val - low_val) / denom
+                        self.calibrations[ch] = (low_volt, low_val, slope)
+
+    def calibrate(self, ch, value):
+        if ch in self.calibrations:
+            low_volt, low_val, slope = self.calibrations[ch]
+            return low_val + (value - low_volt) * slope
+        return value
+
+
+class DaqSampleParser:
+    """
+    Responsibility: Parse interleaved raw DAQ data and compute timestamps relative to a periodic anchor.
+    """
+    def __init__(self, start_channel, channel_count, clock_rate, calibrator, recalibrate_interval_hr=24.0):
+        self.start_channel = start_channel
+        self.channel_count = channel_count
+        self.dt_ns = int(1_000_000_000 / clock_rate)
+        self.calibrator = calibrator
+        
+        # Periodic anchor state configuration
+        self.recalibrate_interval_ns = int(recalibrate_interval_hr * 3600 * 1_000_000_000)
+        self.anchor_time_ns = None
+        self.samples_since_anchor = 0
+
+    def parse_batch(self, batch_wall_ts_ns, raw_data, returned_count):
+        samples_per_channel = returned_count // self.channel_count
+        
+        # Re-anchor the base timestamp if not yet set or if the configured interval has elapsed
+        current_time_ns = time.time_ns()
+        if self.anchor_time_ns is None or (current_time_ns - self.anchor_time_ns) >= self.recalibrate_interval_ns:
+            self.anchor_time_ns = batch_wall_ts_ns
+            self.samples_since_anchor = 0
+            
+        rows = []
+        for s in range(samples_per_channel):
+            # Calculate forward timestamp based on cumulative samples since the last anchor
+            sample_ts_ns = self.anchor_time_ns + (self.samples_since_anchor + s) * self.dt_ns
+            sample_ts = datetime.fromtimestamp(sample_ts_ns / 1_000_000_000, tz=timezone.utc)
+            for ch in range(self.channel_count):
+                value = raw_data[s * self.channel_count + ch]
+                value = self.calibrator.calibrate(ch, value)
+                value = round(value, 3)
+                rows.append((sample_ts, self.start_channel + ch, value))
+                
+        # Advance cumulative sample count for the next batch
+        self.samples_since_anchor += samples_per_channel
+        return rows
+
+
+class TimescaleDBClient:
+    """
+    Responsibility: Manage TimescaleDB connection lifecycle, transactions, and execution.
+    """
+    def __init__(self, dsn, stop_event, dbname=None):
+        self.dsn = dsn
+        self.stop_event = stop_event
+        self.dbname = dbname
+        self.conn = None
+        self.cur = None
+
+    def connect(self):
+        while not self.stop_event.is_set():
             try:
-                data_queue.put_nowait((batch_wall_ts_ns, raw_copy, returned_count))
-                with stats_lock:
-                    stats["polled"]   += returned_count
-                    stats["enqueued"] += 1
-            except queue.Full:
-                with stats_lock:
-                    stats["dropped"] += 1
-                log.warning(
-                    f"Queue full! Dropped 1 batch ({returned_count} samples). "
-                    f"DB writer may be too slow."
-                )
+                self.conn = psycopg2.connect(self.dsn)
+                self.conn.autocommit = False
+                self.cur = self.conn.cursor()
+                db_desc = f" '{self.dbname}'" if self.dbname else ""
+                log.info(f"Connected to database{db_desc}")
+                return True
+            except Exception as e:
+                log.error(f"DB connection failed: {e} — retrying in 5s")
+                for _ in range(50):
+                    if self.stop_event.is_set():
+                        return False
+                    time.sleep(0.1)
+        return False
 
-    finally:
-        wf.stop()
-        # wf.release()
-        wf.dispose()
-        log.info("DAQ thread stopped and device released.")
+    def insert_samples(self, rows, page_size):
+        if not self.conn or not self.cur:
+            raise RuntimeError("Not connected to database")
+        INSERT_SQL = "INSERT INTO daq_samples (time, channel, value) VALUES %s"
+        psycopg2.extras.execute_values(
+            self.cur, INSERT_SQL, rows, page_size=page_size
+        )
+        self.conn.commit()
+
+    def rollback(self):
+        if self.conn:
+            self.conn.rollback()
+
+    def disconnect(self):
+        if self.cur:
+            try:
+                self.cur.close()
+            except:
+                pass
+            self.cur = None
+        if self.conn:
+            try:
+                self.conn.close()
+            except:
+                pass
+            self.conn = None
+        log.info("Disconnected from database.")
 
 
 # ─── DB Writer Thread ─────────────────────────────────────────────────────────
 def db_writer_thread():
     """
-    Responsibility: dequeue raw batches, parse interleaved data, batch INSERT to TimescaleDB.
+    Responsibility: dequeue raw batches, delegate parsing, delegate writing to TimescaleDB.
     Non-daemon thread — will flush remaining queue items before process exits.
     """
-    conn = None
-    while conn is None:
-        try:
-            conn = psycopg2.connect(config.DB_DSN)
-            conn.autocommit = False
-            log.info("DB writer connected to TimescaleDB")
-        except Exception as e:
-            log.error(f"DB connection failed: {e} — retrying in 5s")
-            time.sleep(5)
-            if stop_event.is_set():
-                return
-
-    cur = conn.cursor()
-
-    INSERT_SQL = "INSERT INTO daq_samples (time, channel, value) VALUES %s"
-    # dt in nanoseconds — used for back-computing per-sample timestamps
-    dt_ns = int(1_000_000_000 / config.CLOCK_RATE)   # e.g. 1_000_000 ns at 1000 Hz
-    log.info(
-        f"DB writer ready | clock={config.CLOCK_RATE} Hz | dt={dt_ns} ns/sample "
-        f"| time-sync: per-batch wall-clock anchor (ms-scale)"
+    calibrator = Calibrator(
+        start_channel=config.START_CHANNEL,
+        channel_count=config.CHANNEL_COUNT,
+        scale_configs=getattr(config, 'SCALE_CONFIGS', {})
     )
+
+    parser = DaqSampleParser(
+        start_channel=config.START_CHANNEL,
+        channel_count=config.CHANNEL_COUNT,
+        clock_rate=config.CLOCK_RATE,
+        calibrator=calibrator,
+        recalibrate_interval_hr=getattr(config, 'ANCHOR_RECALIBRATE_INTERVAL_HR', 24.0)
+    )
+
+    db_client = TimescaleDBClient(config.DB_DSN, stop_event)
+
+    if not db_client.connect():
+        log.info("DB writer exiting (could not establish connection).")
+        return
+
+    log.info("DB writer ready and streaming...")
 
     while not stop_event.is_set() or not data_queue.empty():
         try:
@@ -206,58 +337,26 @@ def db_writer_thread():
         except queue.Empty:
             continue
 
-        # ── Parse interleaved data into DB rows ──
-        # raw_data layout: [ch0_s0, ch1_s0, ch0_s1, ch1_s1, ...]
-        #
-        # Time-sync: batch_wall_ts_ns anchors the LAST sample of this batch.
-        # Back-compute each earlier sample:
-        #   sample_ts_ns = batch_wall_ts_ns - (samples_per_channel - 1 - s) * dt_ns
-        #
-        # This keeps every timestamp within OS scheduling jitter (~1 ms)
-        # of real wall-clock time, with no cumulative drift.
-        samples_per_channel = returned_count // config.CHANNEL_COUNT
-        rows = []
-        for s in range(samples_per_channel):
-            offset_ns = (samples_per_channel - 1 - s) * dt_ns
-            sample_ts_ns = batch_wall_ts_ns - offset_ns
-            # Convert ns → datetime (Python datetime has µs resolution, sufficient)
-            sample_ts = datetime.fromtimestamp(sample_ts_ns / 1_000_000_000, tz=timezone.utc)
-            for ch in range(config.CHANNEL_COUNT):
-                value = raw_data[s * config.CHANNEL_COUNT + ch]
-                
-                # Apply per-channel linear calibration scaling if enabled in config.json
-                ch_num = config.START_CHANNEL + ch
-                ch_str = str(ch_num)
-                scale_configs = getattr(config, 'SCALE_CONFIGS', {})
-                scale_cfg = scale_configs.get(ch_str) if isinstance(scale_configs, dict) else None
-                
-                if scale_cfg and scale_cfg.get('enabled', False):
-                    low_volt = scale_cfg.get('low_voltage', 0.0)
-                    high_volt = scale_cfg.get('high_voltage', 10.0)
-                    low_val = scale_cfg.get('low_value', 0.0)
-                    high_val = scale_cfg.get('high_value', 100.0)
-                    
-                    denom = high_volt - low_volt
-                    if abs(denom) > 1e-9:
-                        value = low_val + ((value - low_volt) * (high_val - low_val)) / denom
-                
-                # Round value to 3 decimal places (.000 float format)
-                value = round(value, 3)
-                rows.append((sample_ts, config.START_CHANNEL + ch, value))
+        # 1. Parse raw data into database rows (SRP delegation)
+        rows = parser.parse_batch(batch_wall_ts_ns, raw_data, returned_count)
 
-        # ── Batch INSERT ──
+        # 2. Write rows to TimescaleDB (SRP delegation)
         try:
-            psycopg2.extras.execute_values(
-                cur, INSERT_SQL, rows, page_size=config.DB_PAGE_SIZE
-            )
-            conn.commit()
+            db_client.insert_samples(rows, page_size=config.DB_PAGE_SIZE)
             with stats_lock:
                 stats["written"] += len(rows)
         except Exception as e:
-            conn.rollback()
             with stats_lock:
                 stats["db_errors"] += 1
-            log.error(f"DB insert error: {e} — re-queuing batch to avoid data loss")
+            log.error(f"DB insert error: {e} — attempting recovery...")
+
+            # Attempt rollback
+            try:
+                db_client.rollback()
+            except Exception as rb_err:
+                log.error(f"Rollback failed: {rb_err} — connection is dead. Closing resources.")
+                db_client.disconnect()
+
             # Re-enqueue so data is not lost (best-effort)
             try:
                 data_queue.put_nowait((batch_wall_ts_ns, raw_data, returned_count))
@@ -266,9 +365,18 @@ def db_writer_thread():
                     stats["dropped"] += 1
                 log.error("Queue full on re-queue — batch permanently lost!")
 
-    cur.close()
-    conn.close()
-    log.info("DB writer flushed and disconnected.")
+            # Reconnect if connection was lost
+            if not db_client.conn:
+                log.info("Reconnecting to database...")
+                if not db_client.connect():
+                    log.error("Failed to reconnect to database. DB writer thread stopping.")
+                    return
+
+            # Apply rate limiting to prevent tight CPU looping when DB has persistent errors
+            time.sleep(1.0)
+
+    db_client.disconnect()
+
 
 
 # ─── Monitor Thread ───────────────────────────────────────────────────────────

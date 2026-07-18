@@ -14,9 +14,12 @@ document.addEventListener('DOMContentLoaded', () => {
     // Initial loads
     fetchDefaultDsn();
     resolveBackLink();
+    loadStoredLayout();
+    loadStoredPlots();
 
     // Modal UI hooks
     document.getElementById('open-modal-btn').addEventListener('click', openModal);
+    document.getElementById('reset-workspace-btn').addEventListener('click', handleResetWorkspace);
     document.getElementById('empty-state-add-btn').addEventListener('click', openModal);
     document.getElementById('close-modal-btn').addEventListener('click', closeModal);
     document.getElementById('modal-service-select').addEventListener('change', handleModalServiceChange);
@@ -181,6 +184,9 @@ function handleLayoutColumnToggle(e) {
     // Update grid container class
     grid.className = `workspace-grid col-${cols}`;
 
+    // Save layout to storage
+    saveStoredLayout(cols);
+
     // Force Plotly to resize all active charts to fit new container widths
     setTimeout(() => {
         activePlots.forEach(plot => {
@@ -232,6 +238,9 @@ function handleCreatePlotSubmit(e) {
     renderPlotCard(newPlot);
     initPlotlyChart(newPlot);
     
+    // Save to localStorage
+    saveActivePlots();
+    
     // Start interval querying only if in LIVE mode
     if (mode === 'live') {
         newPlot.intervalId = setInterval(() => queryPlotData(newPlot), 1000);
@@ -276,6 +285,12 @@ function renderPlotCard(plot) {
     // Footer config layout: range selector for live, text labels for static
     let footerControlsHtml = '';
     if (plot.mode === 'live') {
+        const isPaused = !!plot.isPaused;
+        const pauseBtnText = isPaused ? 'RESUME' : 'PAUSE';
+        const pauseBtnStyle = isPaused 
+            ? 'background-color: transparent; border: 1px solid var(--accent-sky); color: var(--accent-sky); font-weight: 700; padding: 0.25rem 0.65rem;'
+            : 'background-color: var(--accent-sky); color: var(--bg-main); font-weight: 700; border: none; padding: 0.25rem 0.65rem;';
+
         footerControlsHtml = `
             ${plot.service === 'daq' ? `
             <select class="footer-select" onchange="updatePlotChannel(${plot.id}, this.value)">
@@ -293,7 +308,7 @@ function renderPlotCard(plot) {
                 <option value="900" ${plot.timeRange === 900 ? 'selected' : ''}>15m</option>
                 <option value="1800" ${plot.timeRange === 1800 ? 'selected' : ''}>30m</option>
             </select>
-            <button class="footer-select" onclick="togglePlotPause(${plot.id}, this)" id="pause-btn-${plot.id}" style="background-color: var(--accent-sky); color: var(--bg-main); font-weight: 700; border: none; padding: 0.25rem 0.65rem;">PAUSE</button>
+            <button class="footer-select" onclick="togglePlotPause(${plot.id}, this)" id="pause-btn-${plot.id}" style="${pauseBtnStyle}">${pauseBtnText}</button>
         `;
     } else {
         footerControlsHtml = `
@@ -303,13 +318,17 @@ function renderPlotCard(plot) {
         `;
     }
 
+    const isLiveActive = plot.mode === 'live' && !plot.isPaused;
+    const badgeText = plot.isPaused ? 'PAUSED' : plot.mode;
+    const badgeClass = plot.isPaused ? 'static' : plot.mode;
+
     // Build card markup with status indicator badges
     card.innerHTML = `
         <div class="plot-card-header">
             <div class="plot-title-block">
-                <span class="pulse-dot ${plot.mode === 'live' ? 'green' : 'grey'}" style="background-color: ${plot.mode === 'live' ? 'var(--accent-emerald)' : 'var(--text-muted)'}; box-shadow: ${plot.mode === 'live' ? '0 0 6px var(--accent-emerald)' : 'none'};"></span>
+                <span class="pulse-dot ${isLiveActive ? 'green' : 'grey'}" style="background-color: ${isLiveActive ? 'var(--accent-emerald)' : 'var(--text-muted)'}; box-shadow: ${isLiveActive ? '0 0 6px var(--accent-emerald)' : 'none'};"></span>
                 <h3>${titleText}</h3>
-                <span class="card-badge ${plot.mode}">${plot.mode}</span>
+                <span class="card-badge ${badgeClass}">${badgeText}</span>
             </div>
             <button class="delete-plot-btn" onclick="deletePlot(${plot.id})">&times;</button>
         </div>
@@ -368,7 +387,7 @@ function initPlotlyChart(plot) {
             name: 'Axis X',
             type: 'scatter',
             mode: 'lines',
-            line: { color: '#38bdf8', width: 1.2 },
+            line: { color: '#0ea5e9', width: 1.2 },
             hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>X:</b> %{y} mm<extra></extra>'
         }, {
             x: [],
@@ -402,16 +421,16 @@ function initPlotlyChart(plot) {
         },
         xaxis: {
             type: 'date',
-            gridcolor: '#2b2f38',
-            zerolinecolor: '#3f4756',
-            tickcolor: '#2b2f38',
+            gridcolor: 'rgba(14, 165, 233, 0.08)',
+            zerolinecolor: 'rgba(14, 165, 233, 0.25)',
+            tickcolor: 'rgba(14, 165, 233, 0.1)',
             tickfont: { color: '#cbd5e1', size: 9 },
             hoverformat: '%H:%M:%S.%L'
         },
         yaxis: {
-            gridcolor: '#2b2f38',
-            zerolinecolor: '#3f4756',
-            tickcolor: '#2b2f38',
+            gridcolor: 'rgba(14, 165, 233, 0.08)',
+            zerolinecolor: 'rgba(14, 165, 233, 0.25)',
+            tickcolor: 'rgba(14, 165, 233, 0.1)',
             tickfont: { color: '#cbd5e1', size: 9 },
             autorange: true
         }
@@ -494,7 +513,7 @@ async function queryPlotData(plot) {
                 name: 'Axis X',
                 type: 'scatter',
                 mode: 'lines',
-                line: { color: '#38bdf8', width: 1.2 },
+                line: { color: '#0ea5e9', width: 1.2 },
                 hovertemplate: '<b>Time:</b> %{x|%H:%M:%S.%L}<br><b>X:</b> %{y} mm<extra></extra>'
             }, {
                 x: times,
@@ -529,6 +548,7 @@ function updatePlotChannel(plotId, val) {
     if (plot) {
         plot.channel = parseInt(val, 10);
         queryPlotData(plot);
+        saveActivePlots();
     }
 }
 
@@ -538,6 +558,7 @@ function updatePlotTimeRange(plotId, val) {
     if (plot) {
         plot.timeRange = parseInt(val, 10);
         queryPlotData(plot);
+        saveActivePlots();
     }
 }
 
@@ -555,6 +576,7 @@ function deletePlot(plotId) {
 
     // 2. Remove from global list
     activePlots.splice(index, 1);
+    saveActivePlots();
 
     // 3. Remove DOM element card
     const card = document.getElementById(`plot-card-${plotId}`);
@@ -631,6 +653,7 @@ function togglePlotPause(plotId, btn) {
         queryPlotData(plot); // Fetch immediately
         showToast("Updates resumed.");
     }
+    saveActivePlots();
 }
 
 // Dynamically replace 'localhost' in back link with the accessing IP/hostname
@@ -643,6 +666,108 @@ function resolveBackLink() {
             backLink.setAttribute('href', originalHref.replace('localhost', hostname));
         }
     }
+}
+
+// LocalStorage Persistence Helpers
+function saveActivePlots() {
+    const serializedPlots = activePlots.map(p => ({
+        id: p.id,
+        service: p.service,
+        dsn: p.dsn,
+        channel: p.channel,
+        mode: p.mode,
+        timeRange: p.timeRange,
+        startDatetime: p.startDatetime,
+        endDatetime: p.endDatetime,
+        isPaused: !!p.isPaused
+    }));
+    localStorage.setItem('plotter_active_plots', JSON.stringify(serializedPlots));
+}
+
+function loadStoredPlots() {
+    const stored = localStorage.getItem('plotter_active_plots');
+    if (!stored) return;
+
+    try {
+        const parsed = JSON.parse(stored);
+        if (!Array.isArray(parsed)) return;
+
+        parsed.forEach(plot => {
+            const restoredPlot = {
+                ...plot,
+                intervalId: null
+            };
+            activePlots.push(restoredPlot);
+            renderPlotCard(restoredPlot);
+            initPlotlyChart(restoredPlot);
+
+            if (restoredPlot.mode === 'live' && !restoredPlot.isPaused) {
+                restoredPlot.intervalId = setInterval(() => queryPlotData(restoredPlot), 1000);
+            }
+            queryPlotData(restoredPlot);
+        });
+    } catch (e) {
+        console.error("Failed to restore saved plots:", e);
+    }
+}
+
+function saveStoredLayout(cols) {
+    localStorage.setItem('plotter_layout_cols', cols);
+}
+
+function loadStoredLayout() {
+    const cols = localStorage.getItem('plotter_layout_cols') || '1';
+    const grid = document.getElementById('workspace-grid');
+    if (grid) {
+        grid.className = `workspace-grid col-${cols}`;
+    }
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        if (btn.getAttribute('data-cols') === cols) {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+}
+
+function handleResetWorkspace() {
+    if (!confirm("Are you sure you want to clear the workspace layout and all created plots?")) return;
+    
+    // Clear all interval timers for live plots
+    activePlots.forEach(plot => {
+        if (plot.intervalId) {
+            clearInterval(plot.intervalId);
+        }
+    });
+
+    // Reset list
+    activePlots = [];
+    
+    // Clear localStorage
+    localStorage.removeItem('plotter_active_plots');
+    localStorage.removeItem('plotter_layout_cols');
+
+    // Remove DOM element cards
+    document.querySelectorAll('.plot-card').forEach(card => card.remove());
+
+    // Restore empty state
+    const emptyState = document.getElementById('empty-workspace-state');
+    if (emptyState) emptyState.classList.remove('hidden');
+
+    // Restore layout columns to 1
+    const grid = document.getElementById('workspace-grid');
+    if (grid) grid.className = 'workspace-grid col-1';
+    
+    // Reset layout column buttons active class
+    document.querySelectorAll('.toggle-btn').forEach(btn => {
+        if (btn.getAttribute('data-cols') === '1') {
+            btn.classList.add('active');
+        } else {
+            btn.classList.remove('active');
+        }
+    });
+
+    showToast("Workspace cleared. Stored memories removed.");
 }
 
 // Bind functions to window object for dynamic onclick access

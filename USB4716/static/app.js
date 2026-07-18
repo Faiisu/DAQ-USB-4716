@@ -135,6 +135,8 @@ async function handleConfigSave(e) {
         
         if (el.type === 'checkbox') {
             configData[el.name] = el.checked;
+        } else if (el.name === 'ANCHOR_RECALIBRATE_INTERVAL_HR') {
+            configData[el.name] = parseFloat(el.value);
         } else if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC'].includes(el.name)) {
             configData[el.name] = parseInt(el.value, 10);
         } else {
