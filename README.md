@@ -56,8 +56,8 @@ graph LR
 
     subgraph "Application & Service Layer"
         WebServer[Python http.server<br/>Port 8080]
-        DAQGUISvc[DAQ Control Server<br/>Flask + SocketIO (Port 8081)]
-        PlotSvc[Analytics & Plotter Service<br/>Flask Stateless Web API (Port 8084)]
+        DAQGUISvc["DAQ Control Server<br/>Flask + SocketIO (Port 8081)"]
+        PlotSvc["Analytics & Plotter Service<br/>Flask Stateless Web API (Port 8084)"]
         DAQStream[Ingestion Process<br/>stream_to_db.py / mockup_stream_to_db.py]
     end
 
