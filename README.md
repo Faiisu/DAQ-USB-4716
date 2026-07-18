@@ -61,9 +61,8 @@ graph LR
         DAQStream[Ingestion Process<br/>stream_to_db.py / mockup_stream_to_db.py]
     end
 
-    subgraph "Data & Driver Layer"
+    subgraph "Data Layer"
         TimescaleDB[(TimescaleDB / PostgreSQL<br/>Port 5432)]
-        BDAQSDK[Advantech DAQNavi SDK<br/>Automation.BDaq Drivers]
     end
 
     Portal -.->|links| DAQView
@@ -73,14 +72,12 @@ graph LR
     DAQGUISvc -->|Popen subprocess| DAQStream
     PlotView -->|REST queries| PlotSvc
 
-    DAQStream -->|Advantech SDK| BDAQSDK
     DAQStream -->|psycopg2 bulk INSERT| TimescaleDB
     PlotSvc -->|psycopg2 SELECT queries| TimescaleDB
 
     style Portal fill:#61dafb,stroke:#00d8ff,color:#000
     style DAQGUISvc fill:#ff6b6b,stroke:#ff0000,color:#000
     style TimescaleDB fill:#4caf50,stroke:#2e7d32,color:#000
-    style BDAQSDK fill:#ff9800,stroke:#ef6c00,color:#000
 ```
 
 ### C. Data Flow Diagram
