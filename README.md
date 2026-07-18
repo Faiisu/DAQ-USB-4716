@@ -37,10 +37,10 @@ graph LR
     Verify -->|No| AdjustConfig
     Verify -->|Yes| EndIngestion[Stop Stream & shutdown via stop.sh]
     
-    style Start fill:#e1f5e1,stroke:#4caf50
-    style LaunchPortal fill:#e3f2fd,stroke:#2196f3
-    style StartStream fill:#fff3e0,stroke:#ff9800
-    style Verify fill:#fce4ec,stroke:#e91e63
+    style Start fill:#e1f5e1,stroke:#4caf50,color:#000
+    style LaunchPortal fill:#e3f2fd,stroke:#2196f3,color:#000
+    style StartStream fill:#fff3e0,stroke:#ff9800,color:#000
+    style Verify fill:#fce4ec,stroke:#e91e63,color:#000
 ```
 
 ### B. Technical Architecture Diagram
@@ -77,10 +77,10 @@ graph LR
     DAQStream -->|psycopg2 bulk INSERT| TimescaleDB
     PlotSvc -->|psycopg2 SELECT queries| TimescaleDB
 
-    style Portal fill:#61dafb,stroke:#00d8ff
-    style DAQGUISvc fill:#ff6b6b,stroke:#ff0000
-    style TimescaleDB fill:#4caf50,stroke:#2e7d32
-    style BDAQSDK fill:#ff9800,stroke:#ef6c00
+    style Portal fill:#61dafb,stroke:#00d8ff,color:#000
+    style DAQGUISvc fill:#ff6b6b,stroke:#ff0000,color:#000
+    style TimescaleDB fill:#4caf50,stroke:#2e7d32,color:#000
+    style BDAQSDK fill:#ff9800,stroke:#ef6c00,color:#000
 ```
 
 ### C. Data Flow Diagram
