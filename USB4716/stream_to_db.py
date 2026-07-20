@@ -18,7 +18,7 @@ Architecture (2-thread + Queue):
                         │
   ┌─────────────────────▼────────────────────────────┐
   │ DB Writer Thread  (parse + batch INSERT)         │
-  │  get(raw) → back-compute per-sample ts → INSERT  │
+  │  get(raw) → compute periodic forward ts → INSERT │
   └──────────────────────────────────────────────────┘
 
 Key design decisions:
@@ -27,14 +27,12 @@ Key design decisions:
   - Queue.put_nowait() — DAQ NEVER blocks waiting for DB
   - DB writer is non-daemon → flushes queue before process exits
 
-  Time-sync (ms-scale):
-  - batch_wall_ts = time.time_ns() captured immediately after getDataF64()
-    returns → anchors the wall-clock time of the LAST sample in the batch.
-  - Per-sample timestamp is back-computed:
-      sample_ts = batch_wall_ts - (samples_per_channel - 1 - s) * dt_ns
-  - This eliminates cumulative drift from the single-t0 scheme; each batch
-    is re-anchored independently, keeping timestamps within OS scheduling
-    jitter (~1 ms) of real wall-clock time.
+  Time-sync (Periodic Re-anchoring):
+  - Base anchor timestamp is established when streaming starts or reset every RECALIBRATE_INTERVAL_HR.
+  - Per-sample timestamp is forward-computed cumulatively:
+      sample_ts = anchor_time_ns + (samples_since_anchor + s) * dt_ns
+  - This eliminates per-batch jitter across buffer seams while periodically
+    re-synchronizing with wall-clock time to prevent long-term hardware clock drift.
 """
 
 import sys
@@ -73,9 +71,8 @@ log = logging.getLogger(__name__)
 # ─── Shared state ─────────────────────────────────────────────────────────────
 # Each item in queue: (batch_wall_ts_ns: int, raw_data: list[float], returned_count: int)
 #   batch_wall_ts_ns = time.time_ns() captured right after getDataF64() returns
-#                      → wall-clock time of the LAST sample in this batch (nanoseconds)
-#   Per-sample ts is back-computed in DB writer:
-#       sample_ts = batch_wall_ts_ns - (samples_per_channel - 1 - s) * dt_ns
+#   Per-sample ts is forward-computed in DB writer relative to periodic anchor:
+#       sample_ts = anchor_time_ns + (samples_since_anchor + s) * dt_ns
 data_queue = queue.Queue(maxsize=config.QUEUE_MAXSIZE)
 stop_event = threading.Event()
 
@@ -127,7 +124,7 @@ def daq_reader_thread():
         )
 
         try:
-            log.info("DAQ loop started — per-batch wall-clock anchoring active (ms-scale sync)")
+            log.info("DAQ loop started — periodic wall-clock re-anchoring active")
 
             while not stop_event.is_set():
                 # Block until USER_BUFFER_SIZE interleaved samples are ready
@@ -162,13 +159,12 @@ def daq_reader_thread():
                     with stats_lock:
                         stats["dropped"] += 1
                     log.warning(
-                        f"Queue full! Dropped 1 batch ({returned_count} samples). "
-                        f"DB writer may be too slow."
+                        f"Queue full! Dropped 1 batch ({returned_count} samples). "                     
                     )
 
         finally:
             wf.stop()
-            # wf.release()
+            wf.release()
             wf.dispose()
             log.info("DAQ thread stopped and device released.")
     except Exception as e:

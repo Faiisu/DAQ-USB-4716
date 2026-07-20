@@ -18,7 +18,7 @@ graph LR
     DAQThread -->|2. Wall-clock timestamping & raw enqueue| Queue
     DAQThread -->|Update stats| Stats
     Queue -->|3. Dequeue batch| WriterThread
-    WriterThread -->|4. Parse interleaved samples & back-compute ts| WriterThread
+    WriterThread -->|4. Parse interleaved samples & compute periodic ts| WriterThread
     WriterThread -->|Update stats| Stats
     MonitorThread -->|Read stats & log| Stats
   end
@@ -38,5 +38,5 @@ graph LR
   MQTTBridge --> TimescaleDB
 ```
 
-**What this shows**: Data flows from the physical or synthetic analog input channels to the DAQ-Reader Thread. It is enqueued along with a wall-clock batch timestamp into a thread-safe Queue. The Data Writer Thread dequeues the batch, parses the interleaved samples, back-computes timestamps, and sends them to the configured destination (`DESTINATION` in `config.json`): either bulk inserted into TimescaleDB via `psycopg2` or published as a JSON payload to the MQTT Broker via `paho-mqtt`. An optional `mqtt_to_db.py` subscriber can bridge MQTT messages into TimescaleDB.
+**What this shows**: Data flows from the physical or synthetic analog input channels to the DAQ-Reader Thread. It is enqueued along with a wall-clock batch timestamp into a thread-safe Queue. The Data Writer Thread dequeues the batch, parses the interleaved samples, computes timestamps relative to the periodic anchor, and sends them to the configured destination (`DESTINATION` in `config.json`): either bulk inserted into TimescaleDB via `psycopg2` or published as a JSON payload to the MQTT Broker via `paho-mqtt`. An optional `mqtt_to_db.py` subscriber can bridge MQTT messages into TimescaleDB.
 

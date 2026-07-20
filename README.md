@@ -104,7 +104,7 @@ graph LR
         DAQThread -->|2. Wall-clock timestamping & raw enqueue| Queue
         DAQThread -->|Update stats| Stats
         Queue -->|3. Dequeue batch| WriterThread
-        WriterThread -->|4. Parse interleaved samples & back-compute ts| WriterThread
+        WriterThread -->|4. Parse interleaved samples & compute periodic ts| WriterThread
         WriterThread -->|Update stats| Stats
         MonitorThread -->|Read stats & log stdout| Stats
     end

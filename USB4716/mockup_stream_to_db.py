@@ -19,7 +19,7 @@ Architecture (2-thread + Queue) — identical to real pipeline:
                         │
   ┌─────────────────────▼────────────────────────────┐
   │ DB Writer Thread  (parse + real psycopg2 INSERT) │
-  │  get(raw) → back-compute per-sample ts → INSERT  │
+  │  get(raw) → compute periodic forward ts → INSERT │
   │  → database: "mockup"  table: daq_samples        │
   └──────────────────────────────────────────────────┘
 
