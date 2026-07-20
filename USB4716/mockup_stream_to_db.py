@@ -411,6 +411,9 @@ class TimescaleDBClient:
         )
         self.conn.commit()
 
+    def send_samples(self, rows, page_size=1000):
+        self.insert_samples(rows, page_size=page_size)
+
     def rollback(self):
         if self.conn:
             self.conn.rollback()
@@ -431,14 +434,120 @@ class TimescaleDBClient:
         log.info("[MockDB] Disconnected from database.")
 
 
-# ─── DB Writer Thread ─────────────────────────────────────────────────────────
+class MQTTClient:
+    """
+    Responsibility: Manage MQTT connection lifecycle and publishing telemetry samples to an MQTT broker.
+    """
+    def __init__(self, broker, port, topic, qos=0, username=None, password=None, tls_enabled=False, ca_certs=None, certfile=None, keyfile=None, stop_event=None, client_id="daq_mockup_publisher"):
+        self.broker = broker
+        self.port = port
+        self.topic = topic
+        self.qos = qos
+        self.username = username
+        self.password = password
+        self.tls_enabled = tls_enabled
+        self.ca_certs = ca_certs
+        self.certfile = certfile
+        self.keyfile = keyfile
+        self.stop_event = stop_event or threading.Event()
+        self.client_id = client_id
+        self.client = None
+        self.is_connected = False
+
+    def connect(self):
+        try:
+            import paho.mqtt.client as mqtt
+        except ImportError:
+            log.error("paho-mqtt package is not installed. Run 'pip install paho-mqtt' to enable MQTT mode.")
+            return False
+
+        while not self.stop_event.is_set():
+            try:
+                try:
+                    self.client = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id=self.client_id)
+                except (AttributeError, TypeError):
+                    self.client = mqtt.Client(client_id=self.client_id)
+
+                if self.username:
+                    self.client.username_pw_set(self.username, self.password or None)
+
+                if self.tls_enabled:
+                    ca = self.ca_certs if (self.ca_certs and os.path.exists(self.ca_certs)) else None
+                    cert = self.certfile if (self.certfile and os.path.exists(self.certfile)) else None
+                    key = self.keyfile if (self.keyfile and os.path.exists(self.keyfile)) else None
+                    self.client.tls_set(ca_certs=ca, certfile=cert, keyfile=key)
+
+                def on_connect(client, userdata, flags, rc, properties=None):
+                    if rc == 0 or rc == mqtt.MQTT_ERR_SUCCESS:
+                        self.is_connected = True
+                        log.info(f"[MockMQTT] Connected to MQTT broker at {self.broker}:{self.port}")
+                    else:
+                        self.is_connected = False
+                        log.error(f"[MockMQTT] MQTT connection failed with code {rc}")
+
+                def on_disconnect(client, userdata, rc, properties=None):
+                    self.is_connected = False
+                    log.warning("[MockMQTT] Disconnected from MQTT broker")
+
+                self.client.on_connect = on_connect
+                self.client.on_disconnect = on_disconnect
+                self.client.connect(self.broker, int(self.port), keepalive=60)
+                self.client.loop_start()
+
+                for _ in range(30):
+                    if self.is_connected:
+                        return True
+                    if self.stop_event.is_set():
+                        return False
+                    time.sleep(0.1)
+
+                log.warning(f"[MockMQTT] MQTT connect timeout ({self.broker}:{self.port}) — retrying in 5s")
+                self.disconnect()
+            except Exception as e:
+                log.error(f"[MockMQTT] MQTT connection error: {e} — retrying in 5s")
+
+            for _ in range(50):
+                if self.stop_event.is_set():
+                    return False
+                time.sleep(0.1)
+        return False
+
+    def send_samples(self, rows, page_size=1000):
+        if not self.client or not self.is_connected:
+            raise RuntimeError("Not connected to MQTT broker")
+        payload_data = [
+            {
+                "time": r[0].isoformat(),
+                "channel": r[1],
+                "value": r[2]
+            }
+            for r in rows
+        ]
+        payload_json = json.dumps(payload_data)
+        info = self.client.publish(self.topic, payload_json, qos=int(self.qos))
+        if info.rc != 0:
+            raise RuntimeError(f"MQTT publish failed with error code {info.rc}")
+
+    def rollback(self):
+        pass
+
+    def disconnect(self):
+        if self.client:
+            try:
+                self.client.loop_stop()
+                self.client.disconnect()
+            except Exception:
+                pass
+            self.client = None
+        self.is_connected = False
+        log.info("[MockMQTT] Disconnected from MQTT broker.")
+
+
+# ─── Data Writer Thread ───────────────────────────────────────────────────────
 def db_writer_thread():
     """
-    Dequeues raw batches, parses interleaved data, and batch-INSERTs into
-    the 'mockup' TimescaleDB database.
-
-    Identical logic to stream_to_db.py's db_writer_thread — only the DSN
-    and database name differ.
+    Dequeues raw batches, parses interleaved data, and writes to TimescaleDB
+    or publishes to MQTT based on config.DESTINATION.
 
     Non-daemon thread — flushes remaining queue items before process exits.
     """
@@ -456,10 +565,27 @@ def db_writer_thread():
         recalibrate_interval_hr=getattr(config, 'ANCHOR_RECALIBRATE_INTERVAL_HR', 24.0)
     )
 
-    db_client = TimescaleDBClient(MOCKUP_MOCKUP_DB_DSN, stop_event, MOCKUP_DB_NAME)
+    destination = getattr(config, 'DESTINATION', 'database').lower()
 
-    if not db_client.connect():
-        log.info("[MockDB] DB writer exiting (could not establish connection).")
+    if destination == 'mqtt':
+        client = MQTTClient(
+            broker=getattr(config, 'MQTT_BROKER', 'localhost'),
+            port=getattr(config, 'MQTT_PORT', 1883),
+            topic=getattr(config, 'MQTT_TOPIC', 'daq/telemetry'),
+            qos=getattr(config, 'MQTT_QOS', 0),
+            username=getattr(config, 'MQTT_USERNAME', ''),
+            password=getattr(config, 'MQTT_PASSWORD', ''),
+            tls_enabled=getattr(config, 'MQTT_TLS_ENABLED', False),
+            ca_certs=getattr(config, 'MQTT_CA_CERTS', ''),
+            certfile=getattr(config, 'MQTT_CLIENT_CERT', ''),
+            keyfile=getattr(config, 'MQTT_CLIENT_KEY', ''),
+            stop_event=stop_event
+        )
+    else:
+        client = TimescaleDBClient(MOCKUP_MOCKUP_DB_DSN, stop_event, MOCKUP_DB_NAME)
+
+    if not client.connect():
+        log.info(f"[MockWriter] Writer exiting (could not establish {destination} connection).")
         return
 
     # Optional CSV output
@@ -470,9 +596,9 @@ def db_writer_thread():
             csv_file   = open(MOCKUP_CSV_PATH, "w", newline="")
             csv_writer = csv.writer(csv_file)
             csv_writer.writerow(["time_utc", "channel", "value_V"])
-            log.info(f"[MockDB] CSV output enabled → {MOCKUP_CSV_PATH}")
+            log.info(f"[MockWriter] CSV output enabled → {MOCKUP_CSV_PATH}")
         except Exception as e:
-            log.error(f"[MockDB] Failed to open CSV '{MOCKUP_CSV_PATH}': {e}")
+            log.error(f"[MockWriter] Failed to open CSV '{MOCKUP_CSV_PATH}': {e}")
             csv_writer = None
 
     try:
@@ -482,12 +608,12 @@ def db_writer_thread():
             except queue.Empty:
                 continue
 
-            # 1. Parse raw data into database rows (SRP delegation)
+            # 1. Parse raw data into sample rows
             rows = parser.parse_batch(batch_wall_ts_ns, raw_data, returned_count)
 
-            # 2. Write rows to TimescaleDB (SRP delegation)
+            # 2. Write rows to TimescaleDB or publish to MQTT
             try:
-                db_client.insert_samples(rows, page_size=config.DB_PAGE_SIZE)
+                client.send_samples(rows, page_size=config.DB_PAGE_SIZE)
                 with stats_lock:
                     stats["written"] += len(rows)
 
@@ -509,14 +635,14 @@ def db_writer_thread():
             except Exception as e:
                 with stats_lock:
                     stats["db_errors"] += 1
-                log.error(f"[MockDB] DB insert error: {e} — attempting recovery...")
+                log.error(f"[MockWriter] Writer output error ({destination}): {e} — attempting recovery...")
 
                 # Attempt rollback
                 try:
-                    db_client.rollback()
+                    client.rollback()
                 except Exception as rb_err:
-                    log.error(f"[MockDB] Rollback failed: {rb_err} — connection is dead. Closing resources.")
-                    db_client.disconnect()
+                    log.error(f"[MockWriter] Rollback failed: {rb_err} — connection is dead. Closing resources.")
+                    client.disconnect()
 
                 # Re-enqueue so data is not lost (best-effort)
                 try:
@@ -524,32 +650,34 @@ def db_writer_thread():
                 except queue.Full:
                     with stats_lock:
                         stats["dropped"] += 1
-                    log.error("[MockDB] Queue full on re-queue — batch permanently lost!")
+                    log.error("[MockWriter] Queue full on re-queue — batch permanently lost!")
 
                 # Reconnect if connection was lost
-                if not db_client.conn:
-                    log.info("[MockDB] Reconnecting to database...")
-                    if not db_client.connect():
-                        log.error("[MockDB] Failed to reconnect to database. DB writer thread stopping.")
+                conn_ok = getattr(client, 'is_connected', False) if destination == 'mqtt' else getattr(client, 'conn', None)
+                if not conn_ok:
+                    log.info(f"[MockWriter] Reconnecting to {destination}...")
+                    if not client.connect():
+                        log.error(f"[MockWriter] Failed to reconnect to {destination}. Writer thread stopping.")
                         return
 
-                # Apply rate limiting to prevent tight CPU looping when DB has persistent errors
+                # Apply rate limiting to prevent tight CPU looping when writer has persistent errors
                 time.sleep(1.0)
 
     finally:
-        db_client.disconnect()
+        client.disconnect()
         if csv_file is not None:
             try:
                 csv_file.close()
-                log.info(f"[MockDB] CSV file closed: {MOCKUP_CSV_PATH}")
+                log.info(f"[MockWriter] CSV file closed: {MOCKUP_CSV_PATH}")
             except:
                 pass
-        log.info("[MockDB] DB writer flushed and disconnected.")
+        log.info(f"[MockWriter] Writer flushed and disconnected from {destination}.")
 
 
 # ─── Monitor Thread ───────────────────────────────────────────────────────────
 def monitor_thread():
     """Logs pipeline statistics every STATS_INTERVAL_SEC seconds."""
+    dest = getattr(config, 'DESTINATION', 'database').lower()
     while not stop_event.is_set():
         time.sleep(config.STATS_INTERVAL_SEC)
 
@@ -567,7 +695,7 @@ def monitor_thread():
         with _recent_rows_lock:
             snap = list(_recent_rows)
         if snap:
-            log.info(f"[STATS] Last {len(snap)} rows in '{MOCKUP_DB_NAME}'.daq_samples:")
+            log.info(f"[STATS] Last {len(snap)} samples [{dest.upper()}]:")
             for ts, ch, val in snap:
                 log.info(f"  {ts.strftime('%H:%M:%S.%f')[:-3]}  ch{ch}  {val:+.4f} V")
 
@@ -581,30 +709,36 @@ def main():
     signal.signal(signal.SIGINT,  handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
+    dest = getattr(config, 'DESTINATION', 'database').lower()
     log.info("=" * 60)
-    log.info("MOCK DAQ → TimescaleDB ('mockup') Pipeline Starting")
+    log.info(f"MOCK DAQ Streaming Pipeline Starting [Destination: {dest.upper()}]")
     log.info("  [No hardware required — synthetic sine wave data]")
     log.info(f"  Channels    : {config.CHANNEL_COUNT} (ch{config.START_CHANNEL}–ch{config.START_CHANNEL + config.CHANNEL_COUNT - 1})")
     log.info(f"  Clock rate  : {config.CLOCK_RATE} Hz")
     log.info(f"  sectionLength: {config.SECTION_LENGTH} samples/ch")
     log.info(f"  Batch size  : {config.USER_BUFFER_SIZE} interleaved samples (~{config.SECTION_LENGTH / config.CLOCK_RATE * 1000:.0f} ms)")
     log.info(f"  Noise std   : {MOCKUP_NOISE_STD_V:.4f} V")
-    log.info(f"  DB DSN      : {MOCKUP_MOCKUP_DB_DSN}")
+    if dest == 'mqtt':
+        log.info(f"  MQTT Broker : {getattr(config, 'MQTT_BROKER', 'localhost')}:{getattr(config, 'MQTT_PORT', 1883)}")
+        log.info(f"  MQTT Topic  : {getattr(config, 'MQTT_TOPIC', 'daq/telemetry')}")
+    else:
+        log.info(f"  DB DSN      : {MOCKUP_MOCKUP_DB_DSN}")
     log.info(f"  CSV output  : {MOCKUP_CSV_PATH or 'disabled'}")
     log.info("=" * 60)
 
-    # ── Bootstrap DB (create database + schema if needed) ──
-    try:
-        ensure_mockup_db()
-    except Exception:
-        log.error("DB bootstrap failed — cannot continue. Check MOCKUP_DB_DSN in config.py.")
-        sys.exit(1)
+    # ── Bootstrap DB (create database + schema if needed when destination is database) ──
+    if dest == 'database':
+        try:
+            ensure_mockup_db()
+        except Exception:
+            log.error("DB bootstrap failed — cannot continue. Check MOCKUP_DB_DSN in config.json.")
+            sys.exit(1)
 
     daq_thread = threading.Thread(
         target=mock_daq_reader_thread, name="MockDAQ", daemon=True
     )
     db_thread = threading.Thread(
-        target=db_writer_thread, name="MockDB", daemon=False  # non-daemon: flushes on exit
+        target=db_writer_thread, name="MockWriter", daemon=False  # non-daemon: flushes on exit
     )
     mon_thread = threading.Thread(
         target=monitor_thread, name="Monitor", daemon=True
@@ -617,22 +751,23 @@ def main():
     # Wait until stop_event is set (Ctrl+C)
     stop_event.wait()
 
-    log.info("Waiting for DB writer to flush remaining queue...")
+    log.info("Waiting for data writer to flush remaining queue...")
     db_thread.join(timeout=60)
 
     if db_thread.is_alive():
-        log.warning("DB writer did not finish within 60s timeout.")
+        log.warning("Data writer did not finish within 60s timeout.")
 
     with stats_lock:
         s = dict(stats)
     log.info("=" * 60)
     log.info("Pipeline stopped.")
-    log.info(f"  Total polled : {s['polled']:,} samples")
-    log.info(f"  Total written: {s['written']:,} rows  → '{MOCKUP_DB_NAME}'.daq_samples")
-    log.info(f"  Dropped      : {s['dropped']} batches")
-    log.info(f"  DB errors    : {s['db_errors']}")
+    log.info(f"  Total polled   : {s['polled']:,} samples")
+    log.info(f"  Total sent/wrote: {s['written']:,} rows")
+    log.info(f"  Dropped        : {s['dropped']} batches")
+    log.info(f"  Errors         : {s['db_errors']}")
     log.info("=" * 60)
 
 
 if __name__ == "__main__":
     main()
+

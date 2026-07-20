@@ -29,6 +29,10 @@
                 </div>
             </div>
             <div class="header-status">
+                <div class="header-signal-visualizer">
+                    <span class="signal-label monospace">SIGNAL TRACE</span>
+                    <canvas id="signal-canvas" width="180" height="28"></canvas>
+                </div>
                 <div class="status-indicator" id="system-status-indicator">
                     <span class="pulse-dot offline" id="status-dot"></span>
                     <span class="status-label" id="status-text">OFFLINE</span>
@@ -45,7 +49,7 @@
                     <span class="telemetry-value monospace" id="telemetry-polled">0</span>
                 </div>
                 <div class="telemetry-card">
-                    <span class="telemetry-label">DB Inserted Rows</span>
+                    <span class="telemetry-label">Sent / Inserted Rows</span>
                     <span class="telemetry-value monospace" id="telemetry-written">0</span>
                 </div>
                 <div class="telemetry-card">
@@ -65,9 +69,11 @@
             <section class="config-panel">
                 <div class="panel-header">
                     <h2>SYSTEM CONFIGURATION</h2>
-                    <span class="panel-subtitle">Edit config.json fields</span>
+                    <span class="panel-subtitle">Edit config.json parameters</span>
                 </div>
                 <form id="config-form" class="config-form">
+                    <!-- Device & Channel Settings -->
+                    <div class="section-divider-title">HARDWARE & SAMPLING</div>
                     <div class="form-row">
                         <div class="form-group">
                             <label for="DEVICE_DESCRIPTION">Device Description</label>
@@ -109,14 +115,92 @@
                         </div>
                     </div>
 
+                    <!-- Destination Selection -->
+                    <div class="section-divider-title">DATA OUTPUT DESTINATION</div>
                     <div class="form-group">
-                        <label for="DB_DSN">Production database DSN</label>
-                        <input type="text" id="DB_DSN" name="DB_DSN" required>
+                        <label for="DESTINATION">Output Target</label>
+                        <select id="DESTINATION" name="DESTINATION" class="custom-select">
+                            <option value="database">Database (Direct TimescaleDB)</option>
+                            <option value="mqtt">MQTT Broker (Publish Telemetry)</option>
+                        </select>
                     </div>
 
-                    <div class="form-group">
-                        <label for="MOCKUP_DB_DSN">Mockup database DSN</label>
-                        <input type="text" id="MOCKUP_DB_DSN" name="MOCKUP_DB_DSN" required>
+                    <!-- MQTT Configuration Group -->
+                    <div id="mqtt-config-group" class="target-config-card">
+                        <div class="card-title">MQTT BROKER SETTINGS</div>
+                        <div class="form-row">
+                            <div class="form-group flex-2">
+                                <label for="MQTT_BROKER">MQTT Broker Host</label>
+                                <input type="text" id="MQTT_BROKER" name="MQTT_BROKER" placeholder="localhost">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="MQTT_PORT">Port</label>
+                                <input type="number" id="MQTT_PORT" name="MQTT_PORT" placeholder="1883">
+                            </div>
+                        </div>
+                        <div class="form-row">
+                            <div class="form-group flex-2">
+                                <label for="MQTT_TOPIC">Telemetry Topic</label>
+                                <input type="text" id="MQTT_TOPIC" name="MQTT_TOPIC" placeholder="daq/telemetry">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="MQTT_QOS">QoS Level</label>
+                                <select id="MQTT_QOS" name="MQTT_QOS" class="custom-select">
+                                    <option value="0">0 - At most once</option>
+                                    <option value="1">1 - At least once</option>
+                                    <option value="2">2 - Exactly once</option>
+                                </select>
+                            </div>
+                        </div>
+
+                        <!-- MQTT Credentials & Security -->
+                        <div class="card-subtitle">BROKER AUTHENTICATION</div>
+                        <div class="form-row">
+                            <div class="form-group">
+                                <label for="MQTT_USERNAME">Username</label>
+                                <input type="text" id="MQTT_USERNAME" name="MQTT_USERNAME" placeholder="Optional">
+                            </div>
+                            <div class="form-group">
+                                <label for="MQTT_PASSWORD">Password</label>
+                                <input type="password" id="MQTT_PASSWORD" name="MQTT_PASSWORD" placeholder="Optional">
+                            </div>
+                        </div>
+
+                        <div class="form-group checkbox-group" style="padding-top: 0.5rem;">
+                            <input type="checkbox" id="MQTT_TLS_ENABLED" name="MQTT_TLS_ENABLED" class="custom-checkbox">
+                            <label for="MQTT_TLS_ENABLED">Enable TLS / SSL Encryption</label>
+                        </div>
+
+                        <div id="mqtt-tls-group" style="display: none; flex-direction: column; gap: 0.75rem; margin-top: 0.5rem;">
+                            <div class="form-group">
+                                <label for="MQTT_CA_CERTS">CA Certificate Path</label>
+                                <input type="text" id="MQTT_CA_CERTS" name="MQTT_CA_CERTS" placeholder="/path/to/ca.crt">
+                            </div>
+                            <div class="form-row">
+                                <div class="form-group">
+                                    <label for="MQTT_CLIENT_CERT">Client Certificate Path</label>
+                                    <input type="text" id="MQTT_CLIENT_CERT" name="MQTT_CLIENT_CERT" placeholder="Optional">
+                                </div>
+                                <div class="form-group">
+                                    <label for="MQTT_CLIENT_KEY">Client Key Path</label>
+                                    <input type="text" id="MQTT_CLIENT_KEY" name="MQTT_CLIENT_KEY" placeholder="Optional">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Database Configuration Group -->
+                    <div id="db-config-group" class="target-config-card">
+                        <div class="card-title">TIMESCALEDB SETTINGS</div>
+                        <div class="form-group">
+                            <label for="DB_DSN">Production database DSN</label>
+                            <input type="text" id="DB_DSN" name="DB_DSN" required>
+                        </div>
+
+                        <div class="form-group">
+                            <label for="MOCKUP_DB_DSN">Mockup database DSN</label>
+                            <input type="text" id="MOCKUP_DB_DSN" name="MOCKUP_DB_DSN" required>
+                        </div>
                     </div>
 
                     <div class="form-row">
@@ -134,35 +218,30 @@
                         </div>
                     </div>
 
-                    <!-- Linear Scaling Panel Divider -->
-                    <div style="height: 1px; background-color: var(--border-light); margin: 1.5rem 0 1rem 0;"></div>
-                    
-                    <div class="panel-header" style="border: none; padding-bottom: 0.5rem; min-height: auto;">
-                        <h2 style="font-size: 0.85rem; letter-spacing: 0.05em; color: var(--text-primary);">LINEAR SCALING (CALIBRATION)</h2>
-                    </div>
-
-                    <!-- Channel selection target for scaling configuration -->
-                    <div class="form-group" style="margin-bottom: 0.75rem;">
-                        <label for="SCALE_CHANNEL_TARGET">Configure Calibration For</label>
-                        <select id="SCALE_CHANNEL_TARGET" style="background-color: var(--bg-nested); border: 1px solid var(--border-light); border-radius: 4px; padding: 0.5rem 0.75rem; color: var(--text-primary); font-family: inherit; font-size: 0.8rem; width: 100%;">
-                            <option value="0">Channel 0</option>
-                            <option value="1">Channel 1</option>
-                            <option value="2">Channel 2</option>
-                            <option value="3">Channel 3</option>
-                            <option value="4">Channel 4</option>
-                            <option value="5">Channel 5</option>
-                            <option value="6">Channel 6</option>
-                            <option value="7">Channel 7</option>
-                        </select>
-                    </div>
-
-                    <div class="form-group" style="flex-direction: row; align-items: center; gap: 0.5rem; margin-bottom: 0.75rem;">
-                        <input type="checkbox" id="SCALE_ENABLED" style="accent-color: var(--accent-sky); cursor: pointer; width: auto; margin-right: 0.5rem;">
-                        <label for="SCALE_ENABLED" style="cursor: pointer; text-transform: none; font-size: 0.75rem; letter-spacing: normal;">Enable Linear Sensor Scaling</label>
+                    <!-- Linear Sensor Scaling -->
+                    <div class="section-divider-title">LINEAR SENSOR SCALING</div>
+                    <div class="form-row">
+                        <div class="form-group flex-2">
+                            <label for="SCALE_CHANNEL_TARGET">Target Channel</label>
+                            <select id="SCALE_CHANNEL_TARGET" class="custom-select">
+                                <option value="0">Channel 0</option>
+                                <option value="1">Channel 1</option>
+                                <option value="2">Channel 2</option>
+                                <option value="3">Channel 3</option>
+                                <option value="4">Channel 4</option>
+                                <option value="5">Channel 5</option>
+                                <option value="6">Channel 6</option>
+                                <option value="7">Channel 7</option>
+                            </select>
+                        </div>
+                        <div class="form-group flex-1 checkbox-group">
+                            <input type="checkbox" id="SCALE_ENABLED" class="custom-checkbox">
+                            <label for="SCALE_ENABLED">Enable Scaling</label>
+                        </div>
                     </div>
 
                     <div id="scaling-fields-group">
-                        <div class="form-row" style="margin-bottom: 0.75rem;">
+                        <div class="form-row">
                             <div class="form-group">
                                 <label for="SCALE_LOW_VOLTAGE">Low Voltage (V)</label>
                                 <input type="number" id="SCALE_LOW_VOLTAGE" step="any">
@@ -185,10 +264,8 @@
                         </div>
                     </div>
 
-                    <div style="margin-bottom: 1.5rem;"></div>
-
                     <button type="submit" class="save-btn">
-                        <span>Save Configuration</span>
+                        <span>SAVE CONFIGURATION</span>
                     </button>
                 </form>
             </section>

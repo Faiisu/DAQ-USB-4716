@@ -1,5 +1,6 @@
 # Core DAQ pipeline
 psycopg2-binary
+paho-mqtt
 
 # Web GUI
 flask

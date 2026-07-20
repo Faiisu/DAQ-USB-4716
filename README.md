@@ -61,8 +61,9 @@ graph LR
         DAQStream[Ingestion Process<br/>stream_to_db.py]
     end
 
-    subgraph "Data Layer"
+    subgraph "Data & Messaging Layer"
         TimescaleDB[(TimescaleDB / PostgreSQL<br/>Port 5432)]
+        MQTTBroker[MQTT Broker<br/>Port 1883]
     end
 
     Portal -.->|links| DAQView
@@ -73,15 +74,17 @@ graph LR
     PlotView -->|REST queries| PlotSvc
 
     DAQStream -->|psycopg2 bulk INSERT| TimescaleDB
+    DAQStream -.->|paho-mqtt publish| MQTTBroker
     PlotSvc -->|psycopg2 SELECT queries| TimescaleDB
 
     style Portal fill:#61dafb,stroke:#00d8ff,color:#000
     style DAQGUISvc fill:#ff6b6b,stroke:#ff0000,color:#000
     style TimescaleDB fill:#4caf50,stroke:#2e7d32,color:#000
+    style MQTTBroker fill:#ff9800,stroke:#e65100,color:#000
 ```
 
 ### C. Data Flow Diagram
-Maps internal threading, buffering, and query flows of the streaming pipeline.
+Maps internal threading, buffering, and output target flows of the streaming pipeline.
 
 ```mermaid
 graph LR
@@ -93,29 +96,26 @@ graph LR
         direction TB
         DAQThread["🧵 DAQ-Reader Thread"]
         Queue[("📥 In-memory queue.Queue (maxsize=200)")]
-        DBThread["🧵 DB-Writer Thread"]
+        WriterThread["🧵 Data Writer Thread"]
         Stats[("📊 Stats Lock & Dict")]
         MonitorThread["🧵 Monitor Thread"]
 
         DAQThread -->|1. Poll via getDataF64| AI
         DAQThread -->|2. Wall-clock timestamping & raw enqueue| Queue
         DAQThread -->|Update stats| Stats
-        Queue -->|3. Dequeue batch| DBThread
-        DBThread -->|4. Parse interleaved samples & back-compute ts| DBThread
-        DBThread -->|Update stats| Stats
+        Queue -->|3. Dequeue batch| WriterThread
+        WriterThread -->|4. Parse interleaved samples & back-compute ts| WriterThread
+        WriterThread -->|Update stats| Stats
         MonitorThread -->|Read stats & log stdout| Stats
     end
 
-    subgraph PostgreSQL [TimescaleDB]
-        daq_samples[("🗄️ daq_samples Table")]
+    subgraph Targets [Configurable Destinations]
+        TimescaleDB[("🗄️ TimescaleDB (daq_samples)")]
+        MQTTBroker[("📡 MQTT Broker (daq/telemetry)")]
     end
 
-    subgraph Plot [plot_service]
-        Plotter["📈 Interactive Plotly charts"]
-    end
-
-    DBThread -->|"5. execute_values (batch size=1000)"| daq_samples
-    daq_samples -->|6. REST API SELECT| Plotter
+    WriterThread -->|"5a. execute_values (DESTINATION=database)"| TimescaleDB
+    WriterThread -->|"5b. publish JSON batch (DESTINATION=mqtt)"| MQTTBroker
 ```
 
 ---
@@ -217,9 +217,14 @@ chmod +x stop.sh
 
 The hardware interface, database connection parameters, and calibration parameters are configured via [USB4716/config.json](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/config.json).
 
-### Required Parameters
+### Output Destination & MQTT Parameters
 | Parameter | Default Value | Description |
 |:---|:---|:---|
+| `DESTINATION` | `database` | Output target mode (`database` for direct TimescaleDB, `mqtt` for MQTT Broker publishing). |
+| `MQTT_BROKER` | `localhost` | Hostname or IP address of the target MQTT broker. |
+| `MQTT_PORT` | `1883` | Port number of the MQTT broker service. |
+| `MQTT_TOPIC` | `daq/telemetry` | MQTT topic where serialized JSON sample batches are published. |
+| `MQTT_QOS` | `0` | MQTT Quality of Service level (`0`: At most once, `1`: At least once, `2`: Exactly once). |
 | `DB_DSN` | `postgresql://admin:admin@172.21.108.86:5432/daq_db` | Connection DSN string for production TimescaleDB service. |
 | `MOCKUP_DB_DSN` | `postgresql://admin:admin@localhost:5432/daq_db` | Connection DSN string for localized database testing. |
 | `DEVICE_DESCRIPTION` | `USB-4716,BID#0` | Unique hardware identifier matching the Advantech DAQ card name. |
@@ -230,7 +235,7 @@ The hardware interface, database connection parameters, and calibration paramete
 | `START_CHANNEL` | `0` | Starting index of analog input channel scan. |
 | `CHANNEL_COUNT` | `1` | Number of analog channels to scan (max 8 channels on single-ended connections). |
 | `CLOCK_RATE` | `2000` | Hardware scanning frequency (samples per second per channel). |
-| `SECTION_LENGTH` | `500` | Ingestion batch buffer size. Determines chunk size transferred to DB queue. |
+| `SECTION_LENGTH` | `500` | Ingestion batch buffer size. Determines chunk size transferred to queue. |
 | `QUEUE_MAXSIZE` | `200` | Maximum limit of the in-memory threading queue to protect against memory leaks. |
 | `DB_PAGE_SIZE` | `1000` | Number of telemetry rows packed into a single database transactional `INSERT`. |
 
@@ -247,11 +252,34 @@ The `SCALE_CONFIGS` block maps raw analog voltages (1V to 5V or 0V to 10V) to ph
   }
 }
 ```
-*If `enabled` is `true`, raw voltages reading from the channel are mapped linearly from `[low_voltage, high_voltage]` range into the `[low_value, high_value]` unit spectrum prior to storage.*
+*If `enabled` is `true`, raw voltages reading from the channel are mapped linearly from `[low_voltage, high_voltage]` range into the `[low_value, high_value]` unit spectrum prior to transmission/storage.*
 
 ---
 
-## 5. Project Structure
+## 5. MQTT Telemetry & Bridge
+
+When `DESTINATION` is set to `mqtt`, the DAQ streaming pipeline publishes JSON telemetry batches directly to the configured MQTT broker.
+
+### JSON Payload Format
+```json
+[
+  {
+    "time": "2026-07-20T11:40:00.000000+00:00",
+    "channel": 0,
+    "value": 2.45
+  }
+]
+```
+
+### Standalone MQTT-to-DB Subscriber
+To consume telemetry from the MQTT broker and persist it into TimescaleDB:
+```bash
+venv/bin/python USB4716/mqtt_to_db.py
+```
+
+---
+
+## 6. Project Structure
 
 - `portal/`: Portal Gateway static site files.
   - [index.html](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/portal/index.html): Central gateway cockpit web layout.
@@ -259,7 +287,8 @@ The `SCALE_CONFIGS` block maps raw analog voltages (1V to 5V or 0V to 10V) to ph
 - `USB4716/`: DAQ Controller daemon files.
   - [web_gui.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/web_gui.py): Controls python daemon cycles and streams stdout logs to client websockets.
   - [stream_to_db.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/stream_to_db.py): High-throughput hardware thread loop accessing Advantech library calls.
-  - [mockup_stream_to_db.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/mockup_stream_to_db.py): Hardware-free mockup utility.
+  - [mockup_stream_to_db.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/mockup_stream_to_db.py): Hardware-free mockup utility supporting DB and MQTT output.
+  - [mqtt_to_db.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/USB4716/mqtt_to_db.py): Standalone MQTT subscriber daemon bridging MQTT broker messages into TimescaleDB.
 - `plot_service/`: Telemetry Visualizer web application files.
   - [app.py](file:///Users/faiisu/projects.nosync/DAQ-USB-4716/plot_service/app.py): REST API endpoints for connection testing and TimescaleDB querying.
   - `static/`: Frontend visual layout mapping Plotly grid resizing.

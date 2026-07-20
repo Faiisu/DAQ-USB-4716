@@ -6,33 +6,37 @@ graph LR
     AI["Analog Input Channels (ch0-ch7)"]
   end
 
-  subgraph Pipeline [stream_to_db.py]
+  subgraph Pipeline [stream_to_db.py / mockup_stream_to_db.py]
     direction TB
     DAQThread["🧵 DAQ-Reader Thread"]
     Queue[("📥 In-memory queue.Queue (maxsize=200)")]
-    DBThread["🧵 DB-Writer Thread"]
+    WriterThread["🧵 Data Writer Thread"]
     Stats[("📊 stats (dict with Lock)")]
     MonitorThread["🧵 Monitor Thread"]
 
-    DAQThread -->|1. Poll via getDataF64| AI
+    DAQThread -->|1. Poll hardware / mock generator| AI
     DAQThread -->|2. Wall-clock timestamping & raw enqueue| Queue
     DAQThread -->|Update stats| Stats
-    Queue -->|3. Dequeue batch| DBThread
-    DBThread -->|4. Parse interleaved samples & back-compute ts| DBThread
-    DBThread -->|Update stats| Stats
+    Queue -->|3. Dequeue batch| WriterThread
+    WriterThread -->|4. Parse interleaved samples & back-compute ts| WriterThread
+    WriterThread -->|Update stats| Stats
     MonitorThread -->|Read stats & log| Stats
   end
 
-  subgraph PostgreSQL [TimescaleDB]
-    daq_samples[("🗄️ daq_samples Table")]
+  subgraph Targets [Configurable Destinations]
+    TimescaleDB[("🗄️ TimescaleDB (daq_samples)")]
+    MQTTBroker[("📡 MQTT Broker (daq/telemetry)")]
   end
 
-  subgraph Plot [plot_from_db.py]
-    Plotter["📈 Matplotlib Live/Static Plotter"]
+  subgraph Consumer [Optional Consumer]
+    MQTTBridge["🔄 mqtt_to_db.py Subscriber"]
   end
 
-  DBThread -->|5. execute_values (batch size=1000)| daq_samples
-  daq_samples -->|6. Query SELECT| Plotter
+  WriterThread -->|"5a. execute_values (DESTINATION=database)"| TimescaleDB
+  WriterThread -->|"5b. publish JSON batch (DESTINATION=mqtt)"| MQTTBroker
+  MQTTBroker -->|"6. Subscribe & insert"| MQTTBridge
+  MQTTBridge --> TimescaleDB
 ```
 
-**What this shows**: Data flows from the physical analog input channels to the DAQ-Reader Thread via polling. It is enqueued along with a wall-clock batch timestamp into a thread-safe Queue. The DB-Writer Thread dequeues the data, parses the interleaved samples, back-computes timestamps, and bulk inserts them into the `daq_samples` table. The Monitor Thread logs stats, and `plot_from_db.py` queries the DB directly to display plots.
+**What this shows**: Data flows from the physical or synthetic analog input channels to the DAQ-Reader Thread. It is enqueued along with a wall-clock batch timestamp into a thread-safe Queue. The Data Writer Thread dequeues the batch, parses the interleaved samples, back-computes timestamps, and sends them to the configured destination (`DESTINATION` in `config.json`): either bulk inserted into TimescaleDB via `psycopg2` or published as a JSON payload to the MQTT Broker via `paho-mqtt`. An optional `mqtt_to_db.py` subscriber can bridge MQTT messages into TimescaleDB.
+

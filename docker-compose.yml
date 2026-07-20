@@ -12,3 +12,13 @@ services:
     volumes:
       - ./pgdata:/var/lib/postgresql/data
       - ./db_setup.sql:/docker-entrypoint-initdb.d/init.sql
+
+  mosquitto:
+    image: eclipse-mosquitto:latest
+    container_name: daq_mqtt
+    restart: unless-stopped
+    ports:
+      - "1883:1883"
+      - "9001:9001"
+    command: sh -c 'echo "listener 1883\nallow_anonymous true" > /mosquitto/config/mosquitto.conf && /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf'
+

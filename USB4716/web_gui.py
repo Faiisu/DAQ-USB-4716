@@ -203,9 +203,11 @@ def save_config():
 @app.route('/api/status', methods=['GET'])
 def get_status():
     pid, mode = get_running_process()
+    dest = read_config().get('DESTINATION', 'database')
     return jsonify({
         'is_running': pid is not None,
-        'run_mode': mode or 'mockup'
+        'run_mode': mode or 'mockup',
+        'destination': dest
     })
 
 @socketio.on('connect')
@@ -213,9 +215,10 @@ def handle_connect():
     """Fires when browser client opens or refreshes the page."""
     pid, mode = get_running_process()
     is_active = pid is not None
+    dest = read_config().get('DESTINATION', 'database')
     
     # 1. Update client running status immediately
-    emit('status_change', {'is_running': is_active, 'mode': mode or 'mockup'})
+    emit('status_change', {'is_running': is_active, 'mode': mode or 'mockup', 'destination': dest})
     
     # 2. Feed last stats if process is active
     if is_active and last_stats:
@@ -239,13 +242,14 @@ def handle_start(data):
         return
         
     run_mode = data.get('mode', 'mockup')
+    dest = read_config().get('DESTINATION', 'database')
     script_name = "mockup_stream_to_db.py" if run_mode == "mockup" else "stream_to_db.py"
     script_path = os.path.join(os.path.dirname(__file__), script_name)
     
     try:
         # Clear/truncate old log file session
         with open(LOG_PATH, 'w') as f:
-            f.write(f"[SYSTEM] Log session initialized for mode={run_mode.upper()}\n")
+            f.write(f"[SYSTEM] Log session initialized for mode={run_mode.upper()} destination={dest.upper()}\n")
             
         # Open log file to pipe subprocess output
         log_file = open(LOG_PATH, 'a')
@@ -272,8 +276,8 @@ def handle_start(data):
             f.write(run_mode)
             
         # Update sockets immediately
-        socketio.emit('status_change', {'is_running': True, 'mode': run_mode})
-        socketio.emit('log_update', {'log': f'[SYSTEM] Spawning process (PID: {proc.pid})'})
+        socketio.emit('status_change', {'is_running': True, 'mode': run_mode, 'destination': dest})
+        socketio.emit('log_update', {'log': f'[SYSTEM] Spawning process (PID: {proc.pid}) target={dest.upper()}'})
         
         # Start log tailer thread
         start_tailing()

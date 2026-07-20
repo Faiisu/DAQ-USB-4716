@@ -20,9 +20,17 @@ document.addEventListener('DOMContentLoaded', () => {
     const form = document.getElementById('config-form');
     form.addEventListener('submit', handleConfigSave);
 
-    // Setup scaling toggle and target channel listeners
+    // Setup scaling toggle, destination toggle, and target channel listeners
     document.getElementById('SCALE_ENABLED').addEventListener('change', toggleScalingFields);
     document.getElementById('SCALE_CHANNEL_TARGET').addEventListener('change', handleScaleChannelTargetChange);
+    const destEl = document.getElementById('DESTINATION');
+    if (destEl) {
+        destEl.addEventListener('change', toggleDestinationFields);
+    }
+    const tlsEl = document.getElementById('MQTT_TLS_ENABLED');
+    if (tlsEl) {
+        tlsEl.addEventListener('change', toggleTlsFields);
+    }
 
     // Setup action buttons
     document.getElementById('start-btn').addEventListener('click', handleStartProcess);
@@ -31,7 +39,85 @@ document.addEventListener('DOMContentLoaded', () => {
 
     // Bind Socket.IO event listeners
     bindSocketEvents();
+
+    // Start Phosphor Signal Trace Oscilloscope Animation
+    initSignalTraceCanvas();
 });
+
+// Phosphor Signal Trace Oscilloscope Animation
+let canvasPhase = 0;
+function initSignalTraceCanvas() {
+    const canvas = document.getElementById('signal-canvas');
+    if (!canvas) return;
+    const ctx = canvas.getContext('2d');
+
+    function renderTrace() {
+        const w = canvas.width;
+        const h = canvas.height;
+        ctx.clearRect(0, 0, w, h);
+
+        // Draw grid baseline
+        ctx.strokeStyle = 'rgba(0, 242, 254, 0.12)';
+        ctx.lineWidth = 1;
+        ctx.beginPath();
+        ctx.moveTo(0, h / 2);
+        ctx.lineTo(w, h / 2);
+        ctx.stroke();
+
+        if (isSystemRunning) {
+            canvasPhase += 0.15;
+            ctx.beginPath();
+            ctx.strokeStyle = '#00f2fe';
+            ctx.lineWidth = 1.8;
+            ctx.shadowBlur = 8;
+            ctx.shadowColor = '#00f2fe';
+
+            for (let x = 0; x < w; x++) {
+                const y = h / 2 + Math.sin(x * 0.08 + canvasPhase) * (h * 0.35) + (Math.random() - 0.5) * 2;
+                if (x === 0) ctx.moveTo(x, y);
+                else ctx.lineTo(x, y);
+            }
+            ctx.stroke();
+            ctx.shadowBlur = 0;
+        } else {
+            // Idle flatline
+            ctx.beginPath();
+            ctx.strokeStyle = 'rgba(100, 116, 139, 0.4)';
+            ctx.lineWidth = 1;
+            ctx.moveTo(0, h / 2);
+            ctx.lineTo(w, h / 2);
+            ctx.stroke();
+        }
+        requestAnimationFrame(renderTrace);
+    }
+    requestAnimationFrame(renderTrace);
+}
+
+// Toggle visibility of Destination settings (shows ONLY selected destination)
+function toggleDestinationFields() {
+    const dest = document.getElementById('DESTINATION')?.value || 'database';
+    const mqttGroup = document.getElementById('mqtt-config-group');
+    const dbGroup = document.getElementById('db-config-group');
+
+    if (mqttGroup && dbGroup) {
+        if (dest === 'mqtt') {
+            mqttGroup.style.display = 'flex';
+            dbGroup.style.display = 'none';
+        } else {
+            mqttGroup.style.display = 'none';
+            dbGroup.style.display = 'flex';
+        }
+    }
+}
+
+// Toggle visibility of TLS certificate fields
+function toggleTlsFields() {
+    const tlsChecked = document.getElementById('MQTT_TLS_ENABLED')?.checked || false;
+    const tlsGroup = document.getElementById('mqtt-tls-group');
+    if (tlsGroup) {
+        tlsGroup.style.display = tlsChecked ? 'flex' : 'none';
+    }
+}
 
 // Update Header UTC Clock Display
 function updateClock() {
@@ -67,6 +153,8 @@ async function loadConfig() {
         scaleConfigs = config.SCALE_CONFIGS || {};
         currentScaleChannel = document.getElementById('SCALE_CHANNEL_TARGET').value || '0';
         loadScaleChannelToInputs(currentScaleChannel);
+        toggleDestinationFields();
+        toggleTlsFields();
         
         appendLog('INFO', 'System configuration loaded from config.json.');
     } catch (e) {
@@ -80,14 +168,14 @@ async function checkProcessStatus() {
         const res = await fetch('/api/status');
         if (!res.ok) throw new Error("Failed to get status.");
         const status = await res.json();
-        updateUIState(status.is_running, status.run_mode);
+        updateUIState(status.is_running, status.run_mode, status.destination);
     } catch (e) {
         appendLog('ERROR', `Failed to query process status: ${e.message}`);
     }
 }
 
 // Update Start/Stop buttons and indicator dots
-function updateUIState(running, mode = 'mockup') {
+function updateUIState(running, mode = 'mockup', destination = 'database') {
     isSystemRunning = running;
     
     const startBtn = document.getElementById('start-btn');
@@ -97,6 +185,8 @@ function updateUIState(running, mode = 'mockup') {
     const statusText = document.getElementById('status-text');
     const statusIndicator = document.getElementById('system-status-indicator');
 
+    const destLabel = (destination || 'database').toUpperCase();
+
     if (running) {
         startBtn.disabled = true;
         stopBtn.disabled = false;
@@ -104,7 +194,7 @@ function updateUIState(running, mode = 'mockup') {
         
         statusIndicator.classList.add('active');
         statusDot.className = 'pulse-dot green';
-        statusText.textContent = `RUNNING (${mode.toUpperCase()})`;
+        statusText.textContent = `RUNNING (${mode.toUpperCase()} - ${destLabel})`;
     } else {
         startBtn.disabled = false;
         stopBtn.disabled = true;
@@ -137,7 +227,7 @@ async function handleConfigSave(e) {
             configData[el.name] = el.checked;
         } else if (el.name === 'ANCHOR_RECALIBRATE_INTERVAL_HR') {
             configData[el.name] = parseFloat(el.value);
-        } else if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC'].includes(el.name)) {
+        } else if (['START_CHANNEL', 'CHANNEL_COUNT', 'CLOCK_RATE', 'SECTION_LENGTH', 'SECTION_COUNT', 'QUEUE_MAXSIZE', 'DB_PAGE_SIZE', 'STATS_INTERVAL_SEC', 'MQTT_PORT', 'MQTT_QOS'].includes(el.name)) {
             configData[el.name] = parseInt(el.value, 10);
         } else {
             configData[el.name] = el.value;
@@ -235,7 +325,7 @@ function bindSocketEvents() {
 
     // Update status elements
     socket.on('status_change', (data) => {
-        updateUIState(data.is_running, data.mode);
+        updateUIState(data.is_running, data.mode, data.destination);
     });
 
     // Handle new log streams
