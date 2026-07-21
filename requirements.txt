@@ -1,11 +1,11 @@
-# MDDP Ingestion Suite Dependencies
-# See: docs/architecture/context.md
+# MDDP Ingestion Suite - Unified Project Dependencies
+# Comprehensive requirements for all modules (USB4716, mushashi_IV, plot_service, portal)
 
-# Database & Telemetry Stream
+# Database & Telemetry Stream (PostgreSQL / TimescaleDB, MQTT)
 psycopg2-binary
 paho-mqtt
 
-# Web Services & Real-time Sockets
+# Web Services & Real-time Sockets (Flask, SocketIO, Async Engine)
 flask
 flask-socketio
 eventlet
@@ -13,5 +13,5 @@ eventlet
 # Data Visualization & Plotting
 matplotlib
 
-# Hardware Driver (Advantech USB-4716 - required for real hardware mode)
+# Hardware Driver (Advantech USB-4716 DAQ card - required for real hardware mode)
 advantech-AutomationBDaq

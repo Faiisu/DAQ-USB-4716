@@ -14,21 +14,33 @@ echo ==========================================================
 rem 1. Stop Main Portal Gateway
 echo [SYSTEM] Stopping Ingestion Portal...
 taskkill /fi "WINDOWTITLE eq MDDP_PORTAL_HUB*" /t /f >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr /r /c:":8080 .*LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
 if exist "%PORTAL_PID_FILE%" del "%PORTAL_PID_FILE%"
 
 rem 2. Stop DAQ Control Panel
 echo [SYSTEM] Stopping DAQ Control Panel...
 taskkill /fi "WINDOWTITLE eq MDDP_DAQ_PANEL*" /t /f >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr /r /c:":8081 .*LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
 if exist "%DAQ_PID_FILE%" del "%DAQ_PID_FILE%"
 
 rem 3. Stop Musashi IV Control Panel
 echo [SYSTEM] Stopping Musashi IV Control Panel...
 taskkill /fi "WINDOWTITLE eq MDDP_MUSASHI_IV_PANEL*" /t /f >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr /r /c:":8083 .*LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
 if exist "%MUSASHI_IV_PID_FILE%" del "%MUSASHI_IV_PID_FILE%"
 
 rem 4. Stop Telemetry Visualizer
 echo [SYSTEM] Stopping Telemetry Visualizer...
 taskkill /fi "WINDOWTITLE eq MDDP_PLOTTER_SERVICE*" /t /f >nul 2>&1
+for /f "tokens=5" %%a in ('netstat -aon 2^>nul ^| findstr /r /c:":8084 .*LISTENING"') do (
+    taskkill /f /pid %%a >nul 2>&1
+)
 if exist "%PLOTTER_PID_FILE%" del "%PLOTTER_PID_FILE%"
 
 echo [SYSTEM] Shutdown sequence completed.
