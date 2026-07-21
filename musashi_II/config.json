@@ -6,13 +6,13 @@
     "channel": 1
   },
   "database": {
-    "db_type": "sqlite",
-    "db_name": "musashi_data.db",
+    "db_type": "postgresql",
+    "db_name": "mddp_lab",
     "table_name": "musashi_telemetry",
-    "host": "localhost",
-    "port": 5432,
-    "user": "postgres",
-    "password": "",
+    "host": "10.117.8.84",
+    "port": 10001,
+    "user": "admin",
+    "password": "admin",
     "description": "Database storage for MUSASHI Super ΣCMII Dispenser telemetry data"
   },
   "acquisition": {
