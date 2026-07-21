@@ -1,8 +1,11 @@
 # web_gui.py
 # Musashi IV Web Control Panel (Port 8083)
 
-import eventlet
-eventlet.monkey_patch()
+try:
+    import eventlet
+    eventlet.monkey_patch()
+except Exception as _e:
+    print(f"[WARNING] Eventlet initialization warning: {_e}")
 
 import os
 import sys

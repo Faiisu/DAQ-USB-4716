@@ -1,0 +1,17 @@
+# MDDP Ingestion Suite Dependencies
+# See: docs/architecture/context.md
+
+# Database & Telemetry Stream
+psycopg2-binary
+paho-mqtt
+
+# Web Services & Real-time Sockets
+flask
+flask-socketio
+eventlet
+
+# Data Visualization & Plotting
+matplotlib
+
+# Hardware Driver (Advantech USB-4716 - required for real hardware mode)
+advantech-AutomationBDaq

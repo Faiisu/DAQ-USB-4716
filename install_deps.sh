@@ -47,8 +47,8 @@ fi
 echo "[SYSTEM] Upgrading pip..."
 python -m pip install --upgrade pip
 
-echo "[SYSTEM] Installing dependencies from USB4716/requirements.txt..."
-python -m pip install -r USB4716/requirements.txt
+echo "[SYSTEM] Installing dependencies from requirements.txt..."
+python -m pip install -r requirements.txt
 
 if [ $? -eq 0 ]; then
     echo "=========================================================="

@@ -52,17 +52,17 @@ echo 1 > "%PORTAL_PID_FILE%"
 
 rem 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo [SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)...
-start "MDDP_DAQ_PANEL" /min %PYTHON_BIN% USB4716/web_gui.py
+start "MDDP_DAQ_PANEL" /min %PYTHON_BIN% USB4716\web_gui.py
 echo 1 > "%DAQ_PID_FILE%"
 
 rem 3. Start Musashi IV Control Panel (Port 8083)
 echo [SYSTEM] Starting Musashi IV Control Panel on Port 8083 (all interfaces)...
-start "MDDP_MUSASHI_IV_PANEL" /min %PYTHON_BIN% mushashi_IV/web_gui.py
+start "MDDP_MUSASHI_IV_PANEL" /min %PYTHON_BIN% mushashi_IV\web_gui.py
 echo 1 > "%MUSASHI_IV_PID_FILE%"
 
 rem 4. Start Database Plotter (Port 8084)
 echo [SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)...
-start "MDDP_PLOTTER_SERVICE" /min %PYTHON_BIN% plot_service/app.py
+start "MDDP_PLOTTER_SERVICE" /min %PYTHON_BIN% plot_service\app.py
 echo 1 > "%PLOTTER_PID_FILE%"
 
 echo [SYSTEM] Services launched in background.
