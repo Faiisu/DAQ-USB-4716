@@ -1,0 +1,22 @@
+{
+  "serial": {
+    "port": "/dev/cu.usbserial-A600bsZD",
+    "baudrate": 9600,
+    "timeout": 2.0,
+    "channel": 1
+  },
+  "database": {
+    "db_type": "sqlite",
+    "db_name": "musashi_data.db",
+    "table_name": "musashi_telemetry",
+    "host": "localhost",
+    "port": 5432,
+    "user": "postgres",
+    "password": "",
+    "description": "Database storage for MUSASHI Super ΣCMII Dispenser telemetry data"
+  },
+  "acquisition": {
+    "interval_time": 5.0,
+    "max_retries": 3
+  }
+}
