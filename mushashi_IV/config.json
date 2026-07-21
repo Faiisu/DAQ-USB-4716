@@ -3,9 +3,9 @@
   "CHANNEL_NO": 1,
   "TIME_INTERVAL": 1,
   "DESTINATION": "database",
-  "DB_DSN": "postgresql://admin:admin@172.21.108.86:5432/daq_db",
+  "DB_DSN": "postgresql://admin:admin@10.117.8.84:10001/mddp_lab",
   "MOCKUP_DB_DSN": "postgresql://admin:admin@localhost:5432/daq_db",
-  "MOCKUP_MODE": true,
+  "MOCKUP_MODE": false,
   "MOCK_API_PORT": 1025,
   "STATS_INTERVAL_SEC": 5
 }
