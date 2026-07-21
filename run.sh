@@ -4,10 +4,11 @@
 
 PORTAL_PID_FILE=".portal.pid"
 DAQ_PID_FILE=".daq.pid"
+MUSASHI_IV_PID_FILE=".musashi_iv.pid"
 PLOTTER_PID_FILE=".plotter.pid"
 
 # Safeguard check to prevent starting duplicate instances
-if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ] || [ -f "$PLOTTER_PID_FILE" ]; then
+if [ -f "$PORTAL_PID_FILE" ] || [ -f "$DAQ_PID_FILE" ] || [ -f "$MUSASHI_IV_PID_FILE" ] || [ -f "$PLOTTER_PID_FILE" ]; then
     echo "[SYSTEM] Warning: PID files detected. Services may already be running."
     echo "[SYSTEM] Please run ./stop.sh before starting again."
     exit 1
@@ -43,7 +44,12 @@ echo "[SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)..."
 $PYTHON_BIN USB4716/web_gui.py >/dev/null 2>&1 &
 echo $! > "$DAQ_PID_FILE"
 
-# 3. Start Database Plotter (Port 8084)
+# 3. Start Musashi IV Control Panel (Port 8083)
+echo "[SYSTEM] Starting Musashi IV Control Panel on Port 8083 (all interfaces)..."
+$PYTHON_BIN mushashi_IV/web_gui.py >/dev/null 2>&1 &
+echo $! > "$MUSASHI_IV_PID_FILE"
+
+# 4. Start Database Plotter (Port 8084)
 echo "[SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)..."
 $PYTHON_BIN plot_service/app.py >/dev/null 2>&1 &
 echo $! > "$PLOTTER_PID_FILE"

@@ -214,9 +214,9 @@ def get_mock_data():
             values_data['temp'].append(round(temp, 2))
             
         elif service == 'musashi_iv':
-            x = 45.0 + 15.0 * math.sin(t_seconds * 0.08) + random.normalvariate(0, 0.08)
-            y = 50.0 + 12.0 * math.cos(t_seconds * 0.06) + random.normalvariate(0, 0.08)
-            z = 12.0 + 1.5 * math.sin(t_seconds * 0.25) + random.normalvariate(0, 0.02)
+            x = 40.0 + 2.5 * math.sin(t_seconds * 0.08) + random.normalvariate(0, 0.08)
+            y = max(0.0, 0.05 * math.cos(t_seconds * 0.06))
+            z = 1.0 + 0.01 * math.sin(t_seconds * 0.25)
             values_data['x'].append(round(x, 3))
             values_data['y'].append(round(y, 3))
             values_data['z'].append(round(z, 3))
@@ -228,6 +228,50 @@ def get_mock_data():
         'times': times,
         'data': values_data
     })
+
+@app.route('/api/data/musashi_iv')
+def get_musashi_iv_db_data():
+    """
+    Retrieves real time-series telemetry from musashi_iv_data table.
+    """
+    dsn_param = request.args.get('dsn')
+    dsn = dsn_param if dsn_param else get_db_dsn()
+    ch_no = request.args.get('channel', default=1, type=int)
+    last_sec = request.args.get('last', default=60, type=float)
+
+    conn = None
+    try:
+        conn = psycopg2.connect(dsn, connect_timeout=3)
+        end_dt = datetime.now(timezone.utc)
+        start_dt = end_dt - timedelta(seconds=last_sec)
+        query = """
+            SELECT time, dis_press, dis_vacuum, dis_time 
+            FROM musashi_iv_data 
+            WHERE ch_no = %s AND time >= %s AND time <= %s 
+            ORDER BY time ASC;
+        """
+        with conn.cursor(cursor_factory=psycopg2.extras.DictCursor) as cur:
+            cur.execute(query, (ch_no, start_dt, end_dt))
+            rows = cur.fetchall()
+            times = [r['time'].isoformat() for r in rows]
+            pressures = [r['dis_press'] for r in rows]
+            vacuums = [r['dis_vacuum'] for r in rows]
+            dis_times = [r['dis_time'] for r in rows]
+
+        return jsonify({
+            'times': times,
+            'data': {
+                'x': pressures,
+                'y': vacuums,
+                'z': dis_times
+            }
+        })
+    except Exception as e:
+        # Fall back to mock curve if DB is offline
+        return get_mock_data()
+    finally:
+        if conn:
+            conn.close()
 
 if __name__ == '__main__':
     # Served on Port 8084

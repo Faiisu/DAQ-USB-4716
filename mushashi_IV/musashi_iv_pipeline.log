@@ -1,0 +1,13 @@
+2026-07-21 08:36:16,372 [INFO] Starting Musashi IV Ingestion Pipeline | API_URL=http://172.16.48.198:1025/v1/info/channel/data/1 | Interval=1.0s | Mockup=True
+2026-07-21 08:36:18,405 [ERROR] Database connection failed after 3 attempts: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+
+2026-07-21 08:36:18,405 [WARNING] Database connection warning: connection to server at "localhost" (::1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+connection to server at "localhost" (127.0.0.1), port 5432 failed: Connection refused
+	Is the server running on that host and accepting TCP/IP connections?
+. Pipeline will continue and log records.
+2026-07-21 08:36:21,208 [INFO] Termination signal received. Shutting down Musashi IV Ingestion Pipeline...
+2026-07-21 08:36:21,432 [INFO] Musashi IV Ingestion Pipeline stopped.
