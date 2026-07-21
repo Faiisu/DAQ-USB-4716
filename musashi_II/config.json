@@ -9,7 +9,7 @@
     "db_type": "postgresql",
     "db_name": "mddp_lab",
     "table_name": "musashi_telemetry",
-    "host": "10.117.8.84",
+    "host": "100.81.77.113",
     "port": 10001,
     "user": "admin",
     "password": "admin",

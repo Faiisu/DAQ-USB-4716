@@ -1,9 +1,10 @@
 # MDDP Ingestion Suite - Unified Project Dependencies
 # Comprehensive requirements for all modules (USB4716, mushashi_IV, plot_service, portal)
 
-# Database & Telemetry Stream (PostgreSQL / TimescaleDB, MQTT)
+# Database & Telemetry Stream (PostgreSQL / TimescaleDB, MQTT, Serial Port)
 psycopg2-binary
 paho-mqtt
+pyserial
 
 # Web Services & Real-time Sockets (Flask, SocketIO, Async Engine)
 flask

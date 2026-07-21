@@ -1,4 +1,5 @@
 import serial
+import serial.tools.list_ports
 import time
 import re
 import json
@@ -7,6 +8,14 @@ import sys
 import argparse
 import logging
 from database_handler import DatabaseHandler
+
+# Ensure UTF-8 output encoding on Windows consoles to prevent UnicodeEncodeError
+if hasattr(sys.stdout, 'reconfigure'):
+    try:
+        sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+        sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+    except Exception:
+        pass
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -227,8 +236,8 @@ class MusashiDispenser:
         mode_names = {
             0: "Timed",
             1: "Manual",
-            2: "Σ Timed",
-            3: "Σ Manual"
+            2: "Sigma Timed",
+            3: "Sigma Manual"
         }
         mode_name = mode_names.get(mode_code, f"Unknown ({mode_code})")
         
@@ -266,15 +275,92 @@ class MusashiDispenser:
         return self.read_pressure(channel=channel)
 
 
+class MockMusashiDispenser:
+    """Mock/Synthetic Musashi dispenser for driver-free & offline hardware testing."""
+    def __init__(self, port="MOCK", baudrate=9600, timeout=2.0):
+        self.port = port
+        self.ser = None
+        logger.info("Connected to MOCK MUSASHI Dispenser (Synthetic Simulation Mode).")
+
+    def close(self):
+        """Closes mock connection."""
+        logger.info("Mock serial connection closed.")
+
+    def read_pressure(self, channel=1):
+        import random
+        p_raw = random.randint(480, 520)
+        time_ms = random.randint(240, 260)
+        v_raw = random.randint(45, 55)
+        
+        pressure_kpa = round(p_raw * 0.1, 1)
+        vacuum_kpa = round(v_raw * 0.01, 2)
+        
+        return {
+            "channel": channel,
+            "pressure_kpa": pressure_kpa,
+            "pressure_raw": p_raw,
+            "time_ms": time_ms,
+            "time_sec": round(time_ms / 1000.0, 3),
+            "vacuum_kpa": vacuum_kpa,
+            "mode_code": 2,
+            "mode_name": "Sigma Timed",
+            "product_name": "PROD_MOCK",
+            "raw_payload": f"21DA01P{p_raw:04d}T{time_ms:05d}V{v_raw:04d}M2NPROD_MOCK  00"
+        }
+
+    def read_dispense_parameters(self, channel=1):
+        return self.read_pressure(channel=channel)
+
+
+def resolve_serial_port(requested_port):
+    """
+    Resolves serial port path for cross-platform compatibility (Windows vs macOS/Linux).
+    If running on Windows and the configured port is a POSIX path (/dev/...) or unavailable,
+    automatically detects active COM ports.
+    """
+    try:
+        available_ports = [p.device for p in serial.tools.list_ports.comports()]
+    except Exception:
+        available_ports = []
+
+    if sys.platform == "win32" or os.name == "nt":
+        if requested_port.startswith("/dev/") or (available_ports and requested_port not in available_ports):
+            if available_ports:
+                chosen = available_ports[0]
+                logger.warning(
+                    f"Configured port '{requested_port}' is invalid on Windows. "
+                    f"Auto-selected detected port '{chosen}' (Available: {available_ports})"
+                )
+                return chosen
+            else:
+                logger.warning(
+                    f"Configured port '{requested_port}' is invalid on Windows and no COM ports detected. "
+                    f"Defaulting to 'COM1'."
+                )
+                return "COM1"
+    else:
+        if requested_port.startswith("COM"):
+            if available_ports:
+                chosen = available_ports[0]
+                logger.warning(
+                    f"Configured Windows port '{requested_port}' is invalid on {sys.platform}. "
+                    f"Auto-selected detected port '{chosen}' (Available: {available_ports})"
+                )
+                return chosen
+
+    return requested_port
+
+
 def load_config(config_path="config.json"):
     """Loads configuration from JSON file or returns default parameters."""
+    default_port = "COM1" if sys.platform == "win32" else "/dev/cu.usbserial-A600bsZD"
     if os.path.exists(config_path):
         with open(config_path, "r", encoding="utf-8") as f:
             return json.load(f)
     logger.warning(f"Config file '{config_path}' not found. Falling back to default settings.")
     return {
         "serial": {
-            "port": "/dev/cu.usbserial-A600bsZD",
+            "port": default_port,
             "baudrate": 9600,
             "timeout": 2.0,
             "channel": 1
@@ -283,7 +369,7 @@ def load_config(config_path="config.json"):
             "db_type": "sqlite",
             "db_name": "musashi_data.db",
             "table_name": "musashi_telemetry",
-            "description": "Database storage for MUSASHI Super ΣCMII Dispenser telemetry data"
+            "description": "Database storage for MUSASHI Super Sigma CMII Dispenser telemetry data"
         },
         "acquisition": {
             "interval_time": 5.0,
@@ -292,7 +378,7 @@ def load_config(config_path="config.json"):
     }
 
 
-def run_ingestion_loop(config_path="config.json", max_iterations=None, override_interval=None, override_channel=None):
+def run_ingestion_loop(config_path="config.json", max_iterations=None, override_interval=None, override_channel=None, override_port=None, mock_mode=False):
     """
     Main loop that continuously reads telemetry data from MUSASHI dispenser
     and saves it to the database at a configured interval_time.
@@ -303,7 +389,8 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
     db_cfg = config.get("database", {})
     acq_cfg = config.get("acquisition", {})
 
-    port = serial_cfg.get("port", "/dev/cu.usbserial-A600bsZD")
+    raw_port = override_port if override_port is not None else serial_cfg.get("port", "COM1" if sys.platform == "win32" else "/dev/cu.usbserial-A600bsZD")
+    port = "MOCK" if mock_mode else resolve_serial_port(raw_port)
     baudrate = serial_cfg.get("baudrate", 9600)
     timeout = serial_cfg.get("timeout", 2.0)
     channel = override_channel if override_channel is not None else serial_cfg.get("channel", 1)
@@ -311,8 +398,9 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
     interval_time = override_interval if override_interval is not None else acq_cfg.get("interval_time", 5.0)
 
     print("=" * 65)
-    print("      MUSASHI Super ΣCMII Telemetry Ingestion Service      ")
+    print("      MUSASHI Super Sigma CMII Telemetry Ingestion Service      ")
     print("=" * 65)
+    print(f"  Mode:          {'MOCK (Synthetic Hardware Simulation)' if mock_mode else 'REAL (Physical Hardware RS-232)'}")
     print(f"  Serial Port:   {port} @ {baudrate} bps")
     print(f"  Channel:       {channel}")
     print(f"  Interval Time: {interval_time} seconds")
@@ -326,7 +414,11 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
     db_handler = None
 
     try:
-        dispenser = MusashiDispenser(port=port, baudrate=baudrate, timeout=timeout)
+        if mock_mode:
+            dispenser = MockMusashiDispenser(port="MOCK", baudrate=baudrate, timeout=timeout)
+        else:
+            dispenser = MusashiDispenser(port=port, baudrate=baudrate, timeout=timeout)
+            
         db_handler = DatabaseHandler(db_cfg)
         
         iteration = 0
@@ -345,6 +437,13 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
                 print(f"     Pressure: {data['pressure_kpa']} kPa | Time: {data['time_ms']} ms | Vacuum: {data['vacuum_kpa']} kPa | Mode: {data['mode_name']} | Product: '{data['product_name']}'")
             except Exception as err:
                 logger.error(f"Error acquiring or saving data: {err}")
+                if not mock_mode and "Handshake failed" in str(err):
+                    logger.warning(
+                        f"[HINT] No response received from serial port '{port}'.\n"
+                        f"       1. Ensure dispenser unit is powered ON and RS-232 cable is connected.\n"
+                        f"       2. Verify port name (e.g., --port COM3 or --port COM4).\n"
+                        f"       3. To run in driver-free simulation mode, use: python read_musashi.py --mock"
+                    )
 
             if max_iterations is not None and iteration >= max_iterations:
                 print(f"\nReached target iterations limit ({max_iterations}). Exiting loop.")
@@ -366,10 +465,12 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
 
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="MUSASHI Super ΣCMII Data Ingestion and Database Service")
+    parser = argparse.ArgumentParser(description="MUSASHI Super Sigma CMII Data Ingestion and Database Service")
     parser.add_argument("--config", type=str, default="config.json", help="Path to config.json file")
     parser.add_argument("--interval", type=float, default=None, help="Override interval time in seconds between iterations")
     parser.add_argument("--channel", type=int, default=None, help="Override channel number (1 - 100)")
+    parser.add_argument("--port", type=str, default=None, help="Override serial port (e.g. COM3 or /dev/ttyUSB0)")
+    parser.add_argument("--mock", action="store_true", help="Run in mock/simulation mode without physical hardware")
     parser.add_argument("--once", action="store_true", help="Run once instead of infinite loop")
     
     args = parser.parse_args()
@@ -379,5 +480,7 @@ if __name__ == "__main__":
         config_path=args.config,
         max_iterations=max_iter,
         override_interval=args.interval,
-        override_channel=args.channel
+        override_channel=args.channel,
+        override_port=args.port,
+        mock_mode=args.mock
     )

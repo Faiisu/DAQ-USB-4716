@@ -89,7 +89,7 @@ class TestMusashiDispenser(unittest.TestCase):
         self.assertEqual(result['channel'], 1)
         self.assertEqual(result['pressure_kpa'], 50.0)
         self.assertEqual(result['time_ms'], 250)
-        self.assertEqual(result['mode_name'], "Σ Timed")
+        self.assertEqual(result['mode_name'], "Sigma Timed")
 
 
 class TestDatabaseHandler(unittest.TestCase):
