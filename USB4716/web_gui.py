@@ -328,4 +328,4 @@ if pid is not None:
 
 if __name__ == '__main__':
     # Served on Port 8081
-    socketio.run(app, host='0.0.0.0', port=8081, debug=True)
+    socketio.run(app, host='0.0.0.0', port=8081, debug=False)

@@ -275,4 +275,4 @@ def get_musashi_iv_db_data():
 
 if __name__ == '__main__':
     # Served on Port 8084
-    app.run(host='0.0.0.0', port=8084, debug=True)
+    app.run(host='0.0.0.0', port=8084, debug=False)
