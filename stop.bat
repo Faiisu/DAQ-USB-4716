@@ -2,19 +2,34 @@
 rem See: docs/architecture/context.md
 rem English comments only
 
+set "PORTAL_PID_FILE=.portal.pid"
+set "DAQ_PID_FILE=.daq.pid"
+set "MUSASHI_IV_PID_FILE=.musashi_iv.pid"
+set "PLOTTER_PID_FILE=.plotter.pid"
+
 echo ==========================================================
 echo          MDDP Ingestion Control Suite Shutdown
 echo ==========================================================
 
-rem Kill the background window processes by matching their unique titles
+rem 1. Stop Main Portal Gateway
 echo [SYSTEM] Stopping Ingestion Portal...
 taskkill /fi "WINDOWTITLE eq MDDP_PORTAL_HUB*" /t /f >nul 2>&1
+if exist "%PORTAL_PID_FILE%" del "%PORTAL_PID_FILE%"
 
+rem 2. Stop DAQ Control Panel
 echo [SYSTEM] Stopping DAQ Control Panel...
 taskkill /fi "WINDOWTITLE eq MDDP_DAQ_PANEL*" /t /f >nul 2>&1
+if exist "%DAQ_PID_FILE%" del "%DAQ_PID_FILE%"
 
+rem 3. Stop Musashi IV Control Panel
+echo [SYSTEM] Stopping Musashi IV Control Panel...
+taskkill /fi "WINDOWTITLE eq MDDP_MUSASHI_IV_PANEL*" /t /f >nul 2>&1
+if exist "%MUSASHI_IV_PID_FILE%" del "%MUSASHI_IV_PID_FILE%"
+
+rem 4. Stop Telemetry Visualizer
 echo [SYSTEM] Stopping Telemetry Visualizer...
 taskkill /fi "WINDOWTITLE eq MDDP_PLOTTER_SERVICE*" /t /f >nul 2>&1
+if exist "%PLOTTER_PID_FILE%" del "%PLOTTER_PID_FILE%"
 
-echo [SYSTEM] All background processes stopped.
+echo [SYSTEM] Shutdown sequence completed.
 echo ==========================================================

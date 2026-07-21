@@ -2,21 +2,68 @@
 rem See: docs/architecture/context.md
 rem English comments only
 
+set "PORTAL_PID_FILE=.portal.pid"
+set "DAQ_PID_FILE=.daq.pid"
+set "MUSASHI_IV_PID_FILE=.musashi_iv.pid"
+set "PLOTTER_PID_FILE=.plotter.pid"
+
+rem Safeguard check to prevent starting duplicate instances
+if exist "%PORTAL_PID_FILE%" goto :already_running
+if exist "%DAQ_PID_FILE%" goto :already_running
+if exist "%MUSASHI_IV_PID_FILE%" goto :already_running
+if exist "%PLOTTER_PID_FILE%" goto :already_running
+goto :start_services
+
+:already_running
+echo [SYSTEM] Warning: PID files detected. Services may already be running.
+echo [SYSTEM] Please run stop.bat before starting again.
+exit /b 1
+
+:start_services
+rem Resolve Python binary dynamically (prefer virtualenv python over global python)
+set "PYTHON_BIN="
+if exist "venv\Scripts\python.exe" (
+    set "PYTHON_BIN=venv\Scripts\python.exe"
+) else (
+    where python >nul 2>nul
+    if %errorlevel% equ 0 (
+        set "PYTHON_BIN=python"
+    ) else (
+        where py >nul 2>nul
+        if %errorlevel% equ 0 (
+            set "PYTHON_BIN=py"
+        ) else (
+            echo [ERROR] Python was not found on this system.
+            exit /b 1
+        )
+    )
+)
+
+echo [SYSTEM] Using Python interpreter: %PYTHON_BIN%
+
 echo ==========================================================
 echo          MDDP Ingestion Control Suite Startup
 echo ==========================================================
 
 rem 1. Start Main Portal Gateway (Port 8080)
 echo [SYSTEM] Starting Ingestion Portal on Port 8080 (all interfaces)...
-start "MDDP_PORTAL_HUB" /min python -m http.server 8080 --directory portal
+start "MDDP_PORTAL_HUB" /min %PYTHON_BIN% -m http.server 8080 --directory portal
+echo 1 > "%PORTAL_PID_FILE%"
 
 rem 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo [SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)...
-start "MDDP_DAQ_PANEL" /min python USB4716/web_gui.py
+start "MDDP_DAQ_PANEL" /min %PYTHON_BIN% USB4716/web_gui.py
+echo 1 > "%DAQ_PID_FILE%"
 
-rem 3. Start Database Plotter (Port 8084)
+rem 3. Start Musashi IV Control Panel (Port 8083)
+echo [SYSTEM] Starting Musashi IV Control Panel on Port 8083 (all interfaces)...
+start "MDDP_MUSASHI_IV_PANEL" /min %PYTHON_BIN% mushashi_IV/web_gui.py
+echo 1 > "%MUSASHI_IV_PID_FILE%"
+
+rem 4. Start Database Plotter (Port 8084)
 echo [SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)...
-start "MDDP_PLOTTER_SERVICE" /min python plot_service/app.py
+start "MDDP_PLOTTER_SERVICE" /min %PYTHON_BIN% plot_service/app.py
+echo 1 > "%PLOTTER_PID_FILE%"
 
 echo [SYSTEM] Services launched in background.
 echo [SYSTEM] Accessible locally at http://localhost:8080

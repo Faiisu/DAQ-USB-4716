@@ -1,7 +1,7 @@
 {
-  "API_URL": "http://172.16.48.198:1025/v1/info/channel/data/1",
+  "API_URL": "http://172.21.108.214:1025/v1/info/channel/data/1",
   "CHANNEL_NO": 1,
-  "TIME_INTERVAL": 1.0,
+  "TIME_INTERVAL": 1,
   "DESTINATION": "database",
   "DB_DSN": "postgresql://admin:admin@172.21.108.86:5432/daq_db",
   "MOCKUP_DB_DSN": "postgresql://admin:admin@localhost:5432/daq_db",
