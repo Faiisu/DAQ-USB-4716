@@ -261,12 +261,21 @@ def handle_start(data):
         env["PYTHONUNBUFFERED"] = "1"
         
         # Spawn process completely detached using shell redirects
-        proc = subprocess.Popen(
-            [sys.executable, script_path],
+        # close_fds: True on POSIX to detach FDs; must be False on
+        # Windows when stdout/stderr are redirected (Python limitation).
+        popen_kwargs = dict(
             stdout=log_file,
             stderr=subprocess.STDOUT,
             env=env,
-            close_fds=True # Detach file descriptors in parent
+        )
+        if sys.platform != "win32":
+            popen_kwargs["close_fds"] = True
+        else:
+            popen_kwargs["creationflags"] = subprocess.CREATE_NO_WINDOW
+
+        proc = subprocess.Popen(
+            [sys.executable, script_path],
+            **popen_kwargs,
         )
         
         # Close file handle in parent process

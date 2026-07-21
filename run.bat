@@ -41,31 +41,35 @@ if exist "venv\Scripts\python.exe" (
 
 echo [SYSTEM] Using Python interpreter: %PYTHON_BIN%
 
+rem Create logs directory
+if not exist "logs" mkdir "logs"
+
 echo ==========================================================
 echo          MDDP Ingestion Control Suite Startup
 echo ==========================================================
 
 rem 1. Start Main Portal Gateway (Port 8080)
 echo [SYSTEM] Starting Ingestion Portal on Port 8080 (all interfaces)...
-start "MDDP_PORTAL_HUB" /min cmd /c "title MDDP_PORTAL_HUB && %PYTHON_BIN% -m http.server 8080 --directory portal"
+start "MDDP_PORTAL_HUB" /min cmd /c "title MDDP_PORTAL_HUB && %PYTHON_BIN% -m http.server 8080 --directory portal >> logs\portal.log 2>&1"
 echo 1 > "%PORTAL_PID_FILE%"
 
 rem 2. Start DAQ USB-4716 Control Panel (Port 8081)
 echo [SYSTEM] Starting DAQ Control Panel on Port 8081 (all interfaces)...
-start "MDDP_DAQ_PANEL" /min cmd /c "title MDDP_DAQ_PANEL && %PYTHON_BIN% USB4716\web_gui.py"
+start "MDDP_DAQ_PANEL" /min cmd /c "title MDDP_DAQ_PANEL && %PYTHON_BIN% USB4716\web_gui.py >> logs\daq_panel.log 2>&1"
 echo 1 > "%DAQ_PID_FILE%"
 
 rem 3. Start Musashi IV Control Panel (Port 8083)
 echo [SYSTEM] Starting Musashi IV Control Panel on Port 8083 (all interfaces)...
-start "MDDP_MUSASHI_IV_PANEL" /min cmd /c "title MDDP_MUSASHI_IV_PANEL && %PYTHON_BIN% mushashi_IV\web_gui.py"
+start "MDDP_MUSASHI_IV_PANEL" /min cmd /c "title MDDP_MUSASHI_IV_PANEL && %PYTHON_BIN% mushashi_IV\web_gui.py >> logs\musashi_iv_panel.log 2>&1"
 echo 1 > "%MUSASHI_IV_PID_FILE%"
 
 rem 4. Start Database Plotter (Port 8084)
 echo [SYSTEM] Starting Database Plotter on Port 8084 (all interfaces)...
-start "MDDP_PLOTTER_SERVICE" /min cmd /c "title MDDP_PLOTTER_SERVICE && %PYTHON_BIN% plot_service\app.py"
+start "MDDP_PLOTTER_SERVICE" /min cmd /c "title MDDP_PLOTTER_SERVICE && %PYTHON_BIN% plot_service\app.py >> logs\plotter.log 2>&1"
 echo 1 > "%PLOTTER_PID_FILE%"
 
 echo [SYSTEM] Services launched in background.
 echo [SYSTEM] Accessible locally at http://localhost:8080
 echo [SYSTEM] Accessible network-wide at http://^<HOST_IP^>:8080
+echo [SYSTEM] Logs directory: logs\
 echo ==========================================================

@@ -709,6 +709,10 @@ def main():
     signal.signal(signal.SIGINT,  handle_signal)
     signal.signal(signal.SIGTERM, handle_signal)
 
+    # Windows: SIGBREAK fires on console close / taskkill without /f
+    if sys.platform == "win32":
+        signal.signal(signal.SIGBREAK, handle_signal)
+
     dest = getattr(config, 'DESTINATION', 'database').lower()
     log.info("=" * 60)
     log.info(f"MOCK DAQ Streaming Pipeline Starting [Destination: {dest.upper()}]")

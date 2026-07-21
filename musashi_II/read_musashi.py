@@ -7,6 +7,7 @@ import os
 import sys
 import argparse
 import logging
+import datetime
 from database_handler import DatabaseHandler
 
 # Ensure UTF-8 output encoding on Windows consoles to prevent UnicodeEncodeError
@@ -426,7 +427,7 @@ def run_ingestion_loop(config_path="config.json", max_iterations=None, override_
 
         while True:
             iteration += 1
-            timestamp_str = time.strftime("%Y-%m-%d %H:%M:%S")
+            timestamp_str = datetime.datetime.now(datetime.timezone.utc).strftime("%Y-%m-%d %H:%M:%S %Z")
             print(f"[{timestamp_str}] [Loop #{iteration}] Reading Channel {channel}...")
             
             try:

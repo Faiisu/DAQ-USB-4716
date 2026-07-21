@@ -124,7 +124,11 @@ class DatabaseHandler:
         :return: Inserted record ID or boolean success
         """
         cursor = self.conn.cursor()
-        now_str = datetime.datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+        now_dt = datetime.datetime.now(datetime.timezone.utc)
+        if self.db_type == "sqlite":
+            db_timestamp = now_dt.isoformat(" ")
+        else:
+            db_timestamp = now_dt
 
         if self.db_type in ("sqlite", "postgres", "postgresql", "timescaledb"):
             placeholder = "%s" if self.db_type != "sqlite" else "?"
@@ -136,7 +140,7 @@ class DatabaseHandler:
             ) VALUES ({', '.join([placeholder]*11)});
             """
             params = (
-                now_str,
+                db_timestamp,
                 data.get("channel", 1),
                 data.get("pressure_kpa", 0.0),
                 data.get("pressure_raw", 0),
@@ -157,7 +161,7 @@ class DatabaseHandler:
             ) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s);
             """
             params = (
-                now_str,
+                db_timestamp,
                 data.get("channel", 1),
                 data.get("pressure_kpa", 0.0),
                 data.get("pressure_raw", 0),
@@ -174,7 +178,7 @@ class DatabaseHandler:
         self.conn.commit()
         last_row_id = getattr(cursor, "lastrowid", None)
         cursor.close()
-        logger.info(f"Inserted record into '{self.table_name}' at {now_str}")
+        logger.info(f"Inserted record into '{self.table_name}' at {now_dt}")
         return last_row_id
 
     def close(self):

@@ -219,6 +219,10 @@ def run_ingestion():
     signal.signal(signal.SIGINT, sig_handler)
     signal.signal(signal.SIGTERM, sig_handler)
 
+    # Windows: SIGBREAK fires on console close / taskkill without /f
+    if sys.platform == "win32":
+        signal.signal(signal.SIGBREAK, sig_handler)
+
     last_stats_time = time.time()
 
     while running:
