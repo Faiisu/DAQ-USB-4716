@@ -1,0 +1,23 @@
+{
+  "serial": {
+    "port": "COM3",
+    "baudrate": 9600,
+    "timeout": 2.0,
+    "channel": 1,
+    "_comment": "To find your COM port: Open Device Manager > Ports (COM & LPT) > Look for USB Serial Device"
+  },
+  "database": {
+    "db_type": "postgresql",
+    "db_name": "mddp_lab",
+    "table_name": "musashi_telemetry",
+    "host": "100.81.77.113",
+    "port": 10001,
+    "user": "admin",
+    "password": "admin",
+    "description": "Database storage for MUSASHI Super ΣCMII Dispenser telemetry data"
+  },
+  "acquisition": {
+    "interval_time": 1,
+    "max_retries": 3
+  }
+}
