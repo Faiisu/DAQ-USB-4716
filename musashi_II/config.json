@@ -16,7 +16,7 @@
     "description": "Database storage for MUSASHI Super ΣCMII Dispenser telemetry data"
   },
   "acquisition": {
-    "interval_time": 5.0,
+    "interval_time": 1,
     "max_retries": 3
   }
 }
